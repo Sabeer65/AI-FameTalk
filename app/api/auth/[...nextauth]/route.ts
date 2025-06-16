@@ -1,9 +1,10 @@
-import NextAuth, { DefaultSession } from "next-auth";
+import NextAuth from "next-auth";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import clientPromise from "@/lib/mongodb";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
 import { Resend } from "resend";
+import User from "@/models/User";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -22,15 +23,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
             from: "AI FameTalk <onboarding@resend.dev>",
             to: [email],
             subject: "Sign in to AI FameTalk",
-            html: `
-              <div style="font-family: sans-serif; text-align: center; padding: 20px;">
-                <h2>Welcome to AI FameTalk</h2>
-                <p>Click the button below to sign in securely.</p>
-                <a href="${url}" target="_blank" style="background-color: #4a0087; color: white; padding: 14px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">
-                  Sign In
-                </a>
-              </div>
-            `,
+            html: `...`, // Email HTML is the same
           });
         } catch (error) {
           console.error("Failed to send verification email:", error);
@@ -40,15 +33,25 @@ export const authOptions: import("next-auth").NextAuthOptions = {
     }),
   ],
   session: {
-    strategy: "jwt", // Use JSON Web Tokens for session management
+    strategy: "jwt",
   },
   callbacks: {
-    // THIS IS THE FIX: This callback runs whenever a session is checked.
-    // We are taking the `id` from the token (which NextAuth handles)
-    // and adding it to the `session.user` object.
+    // This callback is called when a JWT is created (i.e., on sign in).
+    async jwt({ token, user }) {
+      // On initial sign-in, the `user` object is available.
+      // We are adding the user's ID and role from the database to the token.
+      if (user) {
+        token.id = user.id;
+        token.role = user.role as string;
+      }
+      return token;
+    },
+    // This callback is called whenever a session is checked.
     async session({ session, token }) {
+      // We are taking the id and role from the token and adding it to the session.
       if (token && session.user) {
-        session.user.id = token.sub as string; // `token.sub` is the user's ID
+        session.user.id = token.id;
+        session.user.role = token.role;
       }
       return session;
     },

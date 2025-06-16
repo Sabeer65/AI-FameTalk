@@ -1,10 +1,13 @@
+"use client";
+
 import { Inter } from "next/font/google";
 import AuthProvider from "@/components/AuthProvider";
 import TransitionProvider from "@/components/TransitionProvider";
 import TransitionLink from "@/components/TransitionLink";
 import "./globals.css";
 import { Button } from "@/components/ui/button";
-import LoginButton from "@/components/LoginButton"; // Import the new component
+import LoginButton from "@/components/LoginButton";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,6 +37,9 @@ export default function RootLayout({
                   <TransitionLink href="/chat">
                     <Button variant="ghost">Chat</Button>
                   </TransitionLink>
+                  <TransitionLink href="/pricing">
+                    <Button variant="ghost">Pricing</Button>
+                  </TransitionLink>
                   <TransitionLink href="/profile">
                     <Button variant="ghost">Profile</Button>
                   </TransitionLink>
@@ -43,6 +49,7 @@ export default function RootLayout({
             </header>
             <main className="container mx-auto p-4 md:p-6">{children}</main>
           </TransitionProvider>
+          <Toaster theme="dark" position="bottom-right" />
         </body>
       </html>
     </AuthProvider>

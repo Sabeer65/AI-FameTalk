@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import TransitionLink from "./TransitionLink";
-import { FiSearch, FiMessageSquare } from "react-icons/fi";
+import { FiSearch, FiMessageSquare, FiPlus, FiPenTool } from "react-icons/fi";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import {
@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge"; // We'll add this next
+import { Badge } from "@/components/ui/badge";
 
 interface Persona {
   _id: string;
@@ -40,19 +40,18 @@ export default function PersonaGrid({ personas }: PersonaGridProps) {
     return personas
       .filter(
         (persona) =>
-          activeCategory === "All" || persona.category === activeCategory
+          activeCategory === "All" || persona.category === activeCategory,
       )
       .filter((persona) =>
-        persona.name.toLowerCase().includes(searchQuery.toLowerCase())
+        persona.name.toLowerCase().includes(searchQuery.toLowerCase()),
       );
   }, [personas, activeCategory, searchQuery]);
 
   return (
     <>
-      {/* Search and Create Buttons */}
-      <div className="flex flex-col md:flex-row gap-4 mb-8">
+      <div className="mb-8 flex flex-col gap-4 md:flex-row">
         <div className="relative flex-grow">
-          <FiSearch className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
+          <FiSearch className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2" />
           <Input
             type="text"
             placeholder="Search for a persona..."
@@ -61,12 +60,21 @@ export default function PersonaGrid({ personas }: PersonaGridProps) {
             className="pl-10"
           />
         </div>
-        <Button>Create Persona</Button>
-        <Button variant="secondary">Create Custom Bot</Button>
+        <TransitionLink href="/personas/create">
+          <Button>
+            <FiPlus className="mr-2 h-4 w-4" />
+            Find Persona
+          </Button>
+        </TransitionLink>
+        <TransitionLink href="/personas/custom">
+          <Button variant="secondary">
+            <FiPenTool className="mr-2 h-4 w-4" />
+            Create Custom
+          </Button>
+        </TransitionLink>
       </div>
 
-      {/* Category Filters */}
-      <div className="flex justify-center flex-wrap gap-2 mb-12">
+      <div className="mb-12 flex flex-wrap justify-center gap-2">
         {categories.map((category) => (
           <Button
             key={category}
@@ -79,28 +87,27 @@ export default function PersonaGrid({ personas }: PersonaGridProps) {
         ))}
       </div>
 
-      {/* Persona Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {filteredPersonas.map((persona) => (
           <Card
             key={persona._id}
-            className="overflow-hidden flex flex-col group hover:border-primary transition-colors"
+            className="group hover:border-primary flex flex-col overflow-hidden transition-colors"
           >
             <CardHeader className="p-0">
               <img
                 src={persona.imageUrl}
                 alt={persona.name}
-                className="w-full h-48 object-cover"
+                className="h-48 w-full object-cover"
               />
             </CardHeader>
-            <CardContent className="p-4 flex-grow">
+            <CardContent className="flex-grow p-4">
               <Badge variant="secondary" className="mb-2">
                 {persona.category}
               </Badge>
-              <CardTitle className="text-xl mb-1 truncate">
+              <CardTitle className="mb-1 truncate text-xl">
                 {persona.name}
               </CardTitle>
-              <p className="text-sm text-muted-foreground line-clamp-2">
+              <p className="text-muted-foreground line-clamp-2 text-sm">
                 {persona.description}
               </p>
             </CardContent>
@@ -118,7 +125,7 @@ export default function PersonaGrid({ personas }: PersonaGridProps) {
         ))}
       </div>
       {filteredPersonas.length === 0 && (
-        <div className="text-center col-span-full py-16">
+        <div className="col-span-full py-16 text-center">
           <p className="text-muted-foreground text-lg">No personas found.</p>
         </div>
       )}

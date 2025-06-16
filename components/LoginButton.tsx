@@ -43,6 +43,14 @@ export default function LoginButton() {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>My Account</DropdownMenuLabel>
           <DropdownMenuSeparator />
+
+          {/* THE FIX: Conditionally render the Admin link */}
+          {session.user.role === "admin" && (
+            <TransitionLink href="/admin">
+              <DropdownMenuItem>Admin Dashboard</DropdownMenuItem>
+            </TransitionLink>
+          )}
+
           <DropdownMenuItem onClick={() => signOut()}>
             Sign out
           </DropdownMenuItem>

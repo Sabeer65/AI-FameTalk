@@ -1,10 +1,19 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
 import { FiSend, FiMessageSquare } from "react-icons/fi";
 import TypingLoader from "./TypingLoader";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import TransitionLink from "./TransitionLink";
 
 // --- Data Structures ---
 interface Persona {
@@ -26,13 +35,17 @@ interface ChatWindowProps {
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
 }
 
+const GUEST_MESSAGE_LIMIT = 5;
+
 export default function ChatWindow({
   persona,
   messages,
   setMessages,
 }: ChatWindowProps) {
+  const { data: session, status } = useSession();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -45,11 +58,23 @@ export default function ChatWindow({
     e.preventDefault();
     if (!userInput.trim() || !persona || isLoading) return;
 
+    // --- Guest Rate Limiting Logic ---
+    if (status === "unauthenticated") {
+      const guestCount = parseInt(
+        localStorage.getItem("guestMessageCount") || "0",
+        10,
+      );
+      if (guestCount >= GUEST_MESSAGE_LIMIT) {
+        setShowLimitModal(true);
+        return;
+      }
+      localStorage.setItem("guestMessageCount", (guestCount + 1).toString());
+    }
+
     const newUserMessage: Message = {
       role: "user",
       parts: [{ text: userInput }],
     };
-    // The history sent to the API is now based on the props
     const currentHistory = messages[0]?.parts[0].text.startsWith("Hello!")
       ? messages.slice(1)
       : messages;
@@ -71,7 +96,17 @@ export default function ChatWindow({
         }),
       });
 
-      if (!response.ok) throw new Error("API request failed");
+      // NEW: Handle the "Too Many Requests" error for signed-in free users
+      if (response.status === 429) {
+        const data = await response.json();
+        throw new Error(
+          data.error || "You have reached your monthly message limit.",
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error("API request failed. Please try again later.");
+      }
 
       const data = await response.json();
       const botMessage: Message = {
@@ -79,13 +114,12 @@ export default function ChatWindow({
         parts: [{ text: data.botMessage }],
       };
       setMessages([...currentMessagesForUI, botMessage]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to get response:", error);
+      // NEW: This now displays any error message (including our custom one) in the chat
       const errorMessage: Message = {
         role: "model",
-        parts: [
-          { text: "Sorry, I'm having trouble connecting. Please try again." },
-        ],
+        parts: [{ text: error.message }],
       };
       setMessages([...currentMessagesForUI, errorMessage]);
     } finally {
@@ -95,7 +129,7 @@ export default function ChatWindow({
 
   if (!persona) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+      <div className="flex flex-1 flex-col items-center justify-center p-4 text-center">
         <FiMessageSquare className="text-muted-foreground mb-4" size={64} />
         <h2 className="text-2xl font-bold">Select a chat to begin</h2>
         <p className="text-muted-foreground">
@@ -106,66 +140,78 @@ export default function ChatWindow({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-background text-foreground overflow-hidden">
-      <header className="flex items-center p-4 border-b">
-        <img
-          src={persona.imageUrl}
-          alt={persona.name}
-          className="w-12 h-12 rounded-full object-cover mr-4"
-        />
-        <div>
-          <h2 className="text-xl font-bold">{persona.name}</h2>
-          <p className="text-sm text-muted-foreground">{persona.category}</p>
-        </div>
-      </header>
+    <>
+      <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Free Message Limit Reached</DialogTitle>
+            <DialogDescription>
+              You've used all your free messages for this session. Please sign
+              up for a free account to continue the conversation and save your
+              chat history.
+            </DialogDescription>
+          </DialogHeader>
+          <TransitionLink href="/sign-in" className="w-full">
+            <Button className="w-full">Sign Up to Continue</Button>
+          </TransitionLink>
+        </DialogContent>
+      </Dialog>
 
-      <main className="flex-1 p-6 space-y-6 overflow-y-auto">
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`flex ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            <div
-              className={`p-3 rounded-lg max-w-lg ${
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
-              }`}
-            >
-              <p className="whitespace-pre-wrap">{msg.parts[0].text}</p>
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <TypingLoader />
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </main>
-
-      <footer className="p-4 border-t bg-background">
-        <form onSubmit={handleSubmit} className="flex items-center gap-2">
-          <Input
-            type="text"
-            value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
-            placeholder={`Message ${persona.name}...`}
-            className="flex-1"
-            disabled={isLoading}
-            autoComplete="off"
+      <div className="bg-background text-foreground flex flex-1 flex-col overflow-hidden">
+        <header className="flex items-center border-b p-4">
+          <img
+            src={persona.imageUrl}
+            alt={persona.name}
+            className="mr-4 h-12 w-12 rounded-full object-cover"
           />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={isLoading || !userInput.trim()}
-          >
-            <FiSend className="w-4 h-4" />
-          </Button>
-        </form>
-      </footer>
-    </div>
+          <div>
+            <h2 className="text-xl font-bold">{persona.name}</h2>
+            <p className="text-muted-foreground text-sm">{persona.category}</p>
+          </div>
+        </header>
+
+        <main className="flex-1 space-y-6 overflow-y-auto p-6">
+          {messages.map((msg, index) => (
+            <div
+              key={index}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-lg rounded-lg p-3 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+              >
+                <p className="whitespace-pre-wrap">{msg.parts[0].text}</p>
+              </div>
+            </div>
+          ))}
+          {isLoading && (
+            <div className="flex justify-start">
+              <TypingLoader />
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </main>
+
+        <footer className="bg-background border-t p-4">
+          <form onSubmit={handleSubmit} className="flex items-center gap-2">
+            <Input
+              type="text"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder={`Message ${persona.name}...`}
+              className="flex-1"
+              disabled={isLoading}
+              autoComplete="off"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={isLoading || !userInput.trim()}
+            >
+              <FiSend className="h-4 w-4" />
+            </Button>
+          </form>
+        </footer>
+      </div>
+    </>
   );
 }
