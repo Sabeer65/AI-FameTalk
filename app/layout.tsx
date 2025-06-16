@@ -1,9 +1,10 @@
-"use client"; // Required for TransitionProvider to work with its children
-
 import { Inter } from "next/font/google";
+import AuthProvider from "@/components/AuthProvider";
 import TransitionProvider from "@/components/TransitionProvider";
 import TransitionLink from "@/components/TransitionLink";
 import "./globals.css";
+import { Button } from "@/components/ui/button";
+import LoginButton from "@/components/LoginButton"; // Import the new component
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -13,49 +14,37 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <title>AI FameTalk</title>
-        <meta name="description" content="Chat with your favorite personas" />
-      </head>
-      <body className={`${inter.className} bg-gray-900 text-white`}>
-        <TransitionProvider>
-          <header className="border-b border-gray-700 bg-gray-900 relative z-10">
-            <nav className="container mx-auto flex justify-between items-center p-4">
-              <TransitionLink
-                href="/"
-                className="text-2xl font-bold text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                AI FameTalk
-              </TransitionLink>
-              <div className="flex items-center space-x-6">
-                <TransitionLink
-                  href="/personas"
-                  className="text-gray-300 hover:text-white transition-colors"
-                >
-                  Personas
+    <AuthProvider>
+      <html lang="en" className="dark">
+        <head>
+          <title>AI FameTalk</title>
+          <meta name="description" content="Chat with your favorite personas" />
+        </head>
+        <body className={`${inter.className} bg-background text-foreground`}>
+          <TransitionProvider>
+            <header className="bg-background sticky top-0 z-20 border-b">
+              <nav className="container mx-auto flex items-center justify-between p-4">
+                <TransitionLink href="/" className="text-xl font-bold">
+                  AI FameTalk
                 </TransitionLink>
-                <TransitionLink
-                  href="/chat"
-                  className="text-gray-300 hover:text-white transition-colors"
-                >
-                  Chat
-                </TransitionLink>
-                <TransitionLink
-                  href="/profile"
-                  className="text-gray-300 hover:text-white transition-colors"
-                >
-                  Profile
-                </TransitionLink>
-                <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                  Sign In
-                </button>
-              </div>
-            </nav>
-          </header>
-          <main>{children}</main>
-        </TransitionProvider>
-      </body>
-    </html>
+                <div className="hidden items-center space-x-2 md:flex">
+                  <TransitionLink href="/personas">
+                    <Button variant="ghost">Personas</Button>
+                  </TransitionLink>
+                  <TransitionLink href="/chat">
+                    <Button variant="ghost">Chat</Button>
+                  </TransitionLink>
+                  <TransitionLink href="/profile">
+                    <Button variant="ghost">Profile</Button>
+                  </TransitionLink>
+                </div>
+                <LoginButton />
+              </nav>
+            </header>
+            <main className="container mx-auto p-4 md:p-6">{children}</main>
+          </TransitionProvider>
+        </body>
+      </html>
+    </AuthProvider>
   );
 }

@@ -7,7 +7,9 @@ interface MasterChatPageProps {
   };
 }
 
-export default function MasterChatPage({ searchParams }: MasterChatPageProps) {
+export default async function MasterChatPage({
+  searchParams,
+}: MasterChatPageProps) {
   const initialPersonaId = searchParams.personaId || null;
 
   return <ChatLayout initialPersonaId={initialPersonaId} />;
