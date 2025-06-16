@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,7 +17,14 @@ import { FiSave } from "react-icons/fi";
 import { toast } from "sonner";
 
 export default function CustomPersonaPage() {
-  const [formData, setFormData] = useState({});
+  const router = useRouter();
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    category: "",
+    imageUrl: "",
+    systemPrompt: "",
+  });
   const [isCreating, setIsCreating] = useState(false);
 
   const handleInputChange = (
@@ -27,8 +35,27 @@ export default function CustomPersonaPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    // API logic to save the custom persona will go here
-    toast.info("This feature will be enabled in the next step!");
+    setIsCreating(true);
+    try {
+      const response = await fetch("/api/personas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, isCustom: true }),
+      });
+
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Failed to create custom persona.");
+
+      toast.success("Custom Persona Created!", {
+        description: `${data.name} has been added to your library.`,
+      });
+      router.push("/personas");
+    } catch (err: any) {
+      toast.error("Creation Failed", { description: err.message });
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -58,6 +85,7 @@ export default function CustomPersonaPage() {
               <Input
                 id="name"
                 name="name"
+                value={formData.name}
                 onChange={handleInputChange}
                 required
               />
@@ -67,6 +95,7 @@ export default function CustomPersonaPage() {
               <Input
                 id="category"
                 name="category"
+                value={formData.category}
                 onChange={handleInputChange}
                 placeholder="e.g., Fictional, Assistant"
                 required
@@ -77,6 +106,7 @@ export default function CustomPersonaPage() {
               <Input
                 id="description"
                 name="description"
+                value={formData.description}
                 onChange={handleInputChange}
                 placeholder="A brief, one-sentence description."
                 required
@@ -87,6 +117,7 @@ export default function CustomPersonaPage() {
               <Input
                 id="imageUrl"
                 name="imageUrl"
+                value={formData.imageUrl}
                 onChange={handleInputChange}
                 placeholder="https://example.com/image.jpg"
                 required
@@ -97,6 +128,7 @@ export default function CustomPersonaPage() {
               <Textarea
                 id="systemPrompt"
                 name="systemPrompt"
+                value={formData.systemPrompt}
                 onChange={handleInputChange}
                 className="min-h-[150px]"
                 placeholder="Describe the persona's personality, speaking style, knowledge, and how they should behave..."
@@ -106,8 +138,13 @@ export default function CustomPersonaPage() {
           </CardContent>
           <CardContent>
             <Button type="submit" className="w-full" disabled={isCreating}>
-              <FiSave className="mr-2 h-4 w-4" />
-              Save Custom Persona
+              {isCreating ? (
+                "Saving..."
+              ) : (
+                <>
+                  <FiSave className="mr-2 h-4 w-4" /> Save Custom Persona
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
