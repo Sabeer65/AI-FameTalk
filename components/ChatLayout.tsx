@@ -102,7 +102,7 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
   };
 
   return (
-    <div className="relative flex h-[calc(100vh-69px)] text-foreground overflow-hidden">
+    <div className="relative flex h-screen min-h-screen text-foreground overflow-hidden">
       <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
         className="md:hidden absolute top-4 left-4 z-30 bg-card p-2 rounded-full"
@@ -117,7 +117,7 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
         isSidebarOpen={isSidebarOpen}
       />
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col overflow-y-auto">
         {/* We now pass messages and a setter function to ChatWindow */}
         <ChatWindow
           persona={activePersona}

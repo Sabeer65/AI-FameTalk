@@ -20,10 +20,35 @@ export async function GET() {
     const personaCount = await Persona.countDocuments();
     const chatCount = await ChatSession.countDocuments();
 
+    // Aggregate top 5 most used personas by chat count
+    const topBotsAgg = await ChatSession.aggregate([
+      { $group: { _id: "$personaId", chatCount: { $sum: 1 } } },
+      { $sort: { chatCount: -1 } },
+      { $limit: 5 },
+      {
+        $lookup: {
+          from: "personas",
+          localField: "_id",
+          foreignField: "_id",
+          as: "personaInfo"
+        }
+      },
+      { $unwind: "$personaInfo" },
+      {
+        $project: {
+          _id: 1,
+          chatCount: 1,
+          name: "$personaInfo.name",
+          imageUrl: "$personaInfo.imageUrl"
+        }
+      }
+    ]);
+
     const stats = {
       userCount,
       personaCount,
       chatCount,
+      topBots: topBotsAgg,
     };
 
     return NextResponse.json(stats, { status: 200 });

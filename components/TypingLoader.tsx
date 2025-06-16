@@ -3,14 +3,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function TypingLoader() {
   return (
-    <Alert className="bg-gray-700 border-none text-white w-fit">
+    <Alert className="bg-[#2A2A3E] border-[#FF3366]/20 text-white w-fit">
       <AlertDescription className="flex items-center justify-center gap-2">
         <svg
           width="24"
           height="24"
           viewBox="0 0 24 24"
           xmlns="http://www.w3.org/2000/svg"
-          fill="#fff"
+          fill="#FF3366"
         >
           <circle cx="4" cy="12" r="3">
             <animate
@@ -39,7 +39,7 @@ export default function TypingLoader() {
             />
           </circle>
         </svg>
-        <span>Thinking...</span>
+        <span className="text-[#FF3366]">Thinking...</span>
       </AlertDescription>
     </Alert>
   );

@@ -96,7 +96,6 @@ export default function ChatWindow({
         }),
       });
 
-      // NEW: Handle the "Too Many Requests" error for signed-in free users
       if (response.status === 429) {
         const data = await response.json();
         throw new Error(
@@ -116,7 +115,6 @@ export default function ChatWindow({
       setMessages([...currentMessagesForUI, botMessage]);
     } catch (error: any) {
       console.error("Failed to get response:", error);
-      // NEW: This now displays any error message (including our custom one) in the chat
       const errorMessage: Message = {
         role: "model",
         parts: [{ text: error.message }],
@@ -129,10 +127,12 @@ export default function ChatWindow({
 
   if (!persona) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center p-4 text-center">
-        <FiMessageSquare className="text-muted-foreground mb-4" size={64} />
-        <h2 className="text-2xl font-bold">Select a chat to begin</h2>
-        <p className="text-muted-foreground">
+      <div className="flex flex-1 flex-col items-center justify-center p-4 text-center bg-[#1A1A2E]">
+        <FiMessageSquare className="text-[#FF3366] mb-4" size={64} />
+        <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#FF3366] to-[#6C63FF]">
+          Select a chat to begin
+        </h2>
+        <p className="text-gray-400">
           Choose a persona from the sidebar to start a conversation.
         </p>
       </div>
@@ -142,42 +142,48 @@ export default function ChatWindow({
   return (
     <>
       <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
-        <DialogContent>
+        <DialogContent className="bg-[#1A1A2E] border-[#FF3366]/20">
           <DialogHeader>
-            <DialogTitle>Free Message Limit Reached</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-[#FF3366]">Free Message Limit Reached</DialogTitle>
+            <DialogDescription className="text-gray-400">
               You've used all your free messages for this session. Please sign
               up for a free account to continue the conversation and save your
               chat history.
             </DialogDescription>
           </DialogHeader>
           <TransitionLink href="/sign-in" className="w-full">
-            <Button className="w-full">Sign Up to Continue</Button>
+            <Button className="w-full bg-gradient-to-r from-[#FF3366] to-[#6C63FF] hover:from-[#FF3366]/90 hover:to-[#6C63FF]/90">
+              Sign Up to Continue
+            </Button>
           </TransitionLink>
         </DialogContent>
       </Dialog>
 
-      <div className="bg-background text-foreground flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center border-b p-4">
-          <img
-            src={persona.imageUrl}
-            alt={persona.name}
-            className="mr-4 h-12 w-12 rounded-full object-cover"
-          />
+      <div className="bg-[#1A1A2E] text-white flex flex-1 flex-col overflow-hidden min-h-0">
+        <header className="flex items-center border-b border-[#FF3366]/20 p-4">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-[#FF3366] to-[#6C63FF] flex items-center justify-center text-white font-bold text-xl mr-4">
+            {persona.name.charAt(0)}
+          </div>
           <div>
-            <h2 className="text-xl font-bold">{persona.name}</h2>
-            <p className="text-muted-foreground text-sm">{persona.category}</p>
+            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#FF3366] to-[#6C63FF]">
+              {persona.name}
+            </h2>
+            <p className="text-gray-400 text-sm">{persona.category}</p>
           </div>
         </header>
 
-        <main className="flex-1 space-y-6 overflow-y-auto p-6">
+        <main className="flex-1 min-h-0 space-y-6 overflow-y-auto p-6">
           {messages.map((msg, index) => (
             <div
               key={index}
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-lg rounded-lg p-3 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+                className={`max-w-lg rounded-lg p-4 ${
+                  msg.role === "user"
+                    ? "bg-gradient-to-r from-[#FF3366] to-[#6C63FF] text-white"
+                    : "bg-[#2A2A3E] text-gray-200"
+                }`}
               >
                 <p className="whitespace-pre-wrap">{msg.parts[0].text}</p>
               </div>
@@ -191,14 +197,14 @@ export default function ChatWindow({
           <div ref={messagesEndRef} />
         </main>
 
-        <footer className="bg-background border-t p-4">
+        <footer className="bg-[#1A1A2E] border-t border-[#FF3366]/20 p-4">
           <form onSubmit={handleSubmit} className="flex items-center gap-2">
             <Input
               type="text"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               placeholder={`Message ${persona.name}...`}
-              className="flex-1"
+              className="flex-1 bg-[#2A2A3E] border-[#FF3366]/20 text-white placeholder-gray-400 focus:border-[#FF3366]"
               disabled={isLoading}
               autoComplete="off"
             />
@@ -206,6 +212,7 @@ export default function ChatWindow({
               type="submit"
               size="icon"
               disabled={isLoading || !userInput.trim()}
+              className="bg-gradient-to-r from-[#FF3366] to-[#6C63FF] hover:from-[#FF3366]/90 hover:to-[#6C63FF]/90"
             >
               <FiSend className="h-4 w-4" />
             </Button>

@@ -23,11 +23,11 @@ export default function RootLayout({
           <title>AI FameTalk</title>
           <meta name="description" content="Chat with your favorite personas" />
         </head>
-        <body className={`${inter.className} bg-background text-foreground`}>
+        <body className={`${inter.className} bg-gradient-to-b from-[#1A1A2E] via-[#3E065F] to-[#1A1A2E] min-h-screen w-full text-foreground`}>
           <TransitionProvider>
-            <header className="bg-background sticky top-0 z-20 border-b">
+            <header className="bg-[#1A1A2E]/70 backdrop-blur-xl sticky top-0 z-30 border-b border-[#FF3366]/20 shadow-lg">
               <nav className="container mx-auto flex items-center justify-between p-4">
-                <TransitionLink href="/" className="text-xl font-bold">
+                <TransitionLink href="/" className="text-xl font-bold bg-gradient-to-r from-[#FF3366] to-[#6C63FF] bg-clip-text text-transparent">
                   AI FameTalk
                 </TransitionLink>
                 <div className="hidden items-center space-x-2 md:flex">
