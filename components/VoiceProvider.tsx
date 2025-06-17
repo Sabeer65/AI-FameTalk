@@ -1,44 +1,46 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
-import Script from "next/script";
-
-type VoiceStatus = "initializing" | "ready" | "error";
+import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { createContext, ReactNode, useCallback } from "react";
 
 interface VoiceContextType {
-  status: VoiceStatus;
+  isPlaying: boolean;
+  speak: (options: {
+    text: string;
+    gender?: "male" | "female" | "neutral";
+  }) => void;
+  stop: () => void;
 }
 
-const VoiceContext = createContext<VoiceContextType>({
-  status: "initializing",
-});
+export const VoiceContext = createContext<VoiceContextType | null>(null);
 
-export const useVoice = () => useContext(VoiceContext);
+export default function VoiceProvider({ children }: { children: ReactNode }) {
+  const { isPlaying, speak: ttsSpeak, cancel: ttsCancel } = useTextToSpeech();
 
-export default function VoiceProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [status, setStatus] = useState<VoiceStatus>("initializing");
+  const speak = useCallback(
+    ({
+      text,
+      gender,
+    }: {
+      text: string;
+      gender?: "male" | "female" | "neutral";
+    }) => {
+      ttsSpeak(text, gender);
+    },
+    [ttsSpeak],
+  );
+
+  const stop = useCallback(() => {
+    ttsCancel();
+  }, [ttsCancel]);
+
+  const value = {
+    isPlaying,
+    speak,
+    stop,
+  };
 
   return (
-    <VoiceContext.Provider value={{ status }}>
-      <Script
-        src={`https://code.responsivevoice.org/responsivevoice.js?key=${process.env.NEXT_PUBLIC_RESPONSIVEVOICE_KEY}`}
-        strategy="afterInteractive"
-        // This function runs ONLY if the script loads successfully
-        onLoad={() => {
-          console.log("ResponsiveVoice script loaded successfully.");
-          setStatus("ready");
-        }}
-        // This function runs if the script fails to load (e.g., ad blocker, network error)
-        onError={(e) => {
-          console.error("Failed to load ResponsiveVoice script:", e);
-          setStatus("error");
-        }}
-      />
-      {children}
-    </VoiceContext.Provider>
+    <VoiceContext.Provider value={value}>{children}</VoiceContext.Provider>
   );
 }

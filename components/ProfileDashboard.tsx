@@ -1,5 +1,6 @@
-"use client"; // This tells Next.js to only run this component in the browser
+"use client";
 
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -7,114 +8,118 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
-import { Button } from "@/components/ui/button";
+import { FiStar, FiClock, FiArrowRight } from "react-icons/fi";
+import { Session } from "next-auth";
+import { Button } from "./ui/button";
 import TransitionLink from "./TransitionLink";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import TypingLoader from "./TypingLoader";
 
-// This component receives the user data as props from the server page
-export default function ProfileDashboard({
-  userData,
-  personaLimit,
-  messageLimit,
-}: any) {
-  if (!userData) return null;
+interface ChatSession {
+  _id: string;
+  personaId: {
+    _id: string;
+    name: string;
+    imageUrl: string;
+  };
+}
 
-  const personaChartData = [
-    { name: "Usage", created: userData.personasCreated },
-  ];
-  const messageChartData = [{ name: "Usage", sent: userData.messagesSent }];
+export default function ProfileDashboard({ session }: { session: Session }) {
+  const [recentSessions, setRecentSessions] = useState<ChatSession[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRecentSessions = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/chathistory");
+        if (res.ok) {
+          const data = await res.json();
+          setRecentSessions(data.slice(0, 5));
+        }
+      } catch (error) {
+        console.error("Failed to fetch recent sessions", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchRecentSessions();
+  }, []);
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Subscription Plan</CardTitle>
-          <CardDescription>Your current plan and its features.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="text-primary text-3xl font-bold capitalize">
-            {userData.tier} Tier
-          </div>
-          <p className="text-muted-foreground">
-            {userData.tier === "free"
-              ? "You are on the free plan with basic access."
-              : "You have unlocked all premium features. Thank you for your support!"}
-          </p>
-          {userData.tier === "free" && (
-            <TransitionLink href="/pricing">
-              <Button className="w-full">Upgrade to Premium</Button>
-            </TransitionLink>
-          )}
-        </CardContent>
-      </Card>
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+      <div className="lg:col-span-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FiClock /> Recent Conversations
+            </CardTitle>
+            <CardDescription>Jump back into your recent chats.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center p-8">
+                <TypingLoader />
+              </div>
+            ) : recentSessions.length > 0 ? (
+              <div className="space-y-4">
+                {recentSessions.map((s) => (
+                  <TransitionLink
+                    key={s._id}
+                    href={`/chat?personaId=${s.personaId._id}`}
+                    className="hover:bg-accent -m-3 flex items-center rounded-lg p-3 transition-colors"
+                  >
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={s.personaId.imageUrl} />
+                      <AvatarFallback>
+                        {s.personaId.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="ml-4 flex-grow">
+                      <p className="font-semibold">{s.personaId.name}</p>
+                    </div>
+                    <FiArrowRight className="text-muted-foreground h-5 w-5" />
+                  </TransitionLink>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground py-4 text-center">
+                No recent conversations. Start a new chat to see it here!
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Personas Created</CardTitle>
-          <CardDescription>
-            You have created {userData.personasCreated} of your{" "}
-            {userData.tier === "free" ? personaLimit : "unlimited"} allowed
-            personas.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pl-0">
-          <ResponsiveContainer width="100%" height={50}>
-            <BarChart data={personaChartData} layout="vertical">
-              <XAxis
-                type="number"
-                hide
-                domain={[
-                  0,
-                  userData.tier === "free"
-                    ? personaLimit
-                    : userData.personasCreated,
-                ]}
-              />
-              <YAxis type="category" dataKey="name" hide />
-              <Bar
-                dataKey="created"
-                fill="hsl(var(--primary))"
-                radius={[4, 4, 4, 4]}
-                barSize={25}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>Monthly Message Usage</CardTitle>
-          <CardDescription>
-            You have sent {userData.messagesSent} of your{" "}
-            {userData.tier === "free" ? messageLimit : "unlimited"} messages
-            this month.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pl-0">
-          <ResponsiveContainer width="100%" height={50}>
-            <BarChart data={messageChartData} layout="vertical">
-              <XAxis
-                type="number"
-                hide
-                domain={[
-                  0,
-                  userData.tier === "free"
-                    ? messageLimit
-                    : userData.messagesSent,
-                ]}
-              />
-              <YAxis type="category" dataKey="name" hide />
-              <Bar
-                dataKey="sent"
-                fill="hsl(var(--primary))"
-                radius={[4, 4, 4, 4]}
-                barSize={25}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      <div className="lg:col-span-1">
+        <Card className="sticky top-24">
+          <CardHeader>
+            <CardTitle>Subscription</CardTitle>
+            <CardDescription>Manage your billing and plan.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p>
+              You are currently on the{" "}
+              <span className="text-primary font-bold">
+                {session.user.tier}
+              </span>{" "}
+              plan.
+            </p>
+            {session.user.tier === "Free" && (
+              <TransitionLink href="/pricing">
+                <Button className="w-full">
+                  <FiStar className="mr-2" /> Upgrade to Premium
+                </Button>
+              </TransitionLink>
+            )}
+            {session.user.tier === "Premium" && (
+              <Button variant="outline" className="w-full" disabled>
+                Manage Billing
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

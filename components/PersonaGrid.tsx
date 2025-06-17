@@ -39,7 +39,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
-// Define a strict type for a Persona object
 interface Persona {
   _id: string;
   name: string;
@@ -50,7 +49,6 @@ interface Persona {
   creatorId: string;
 }
 
-// Define the shape of the session object we receive
 interface Session {
   user?: {
     id?: string;
@@ -73,10 +71,8 @@ export default function PersonaGrid({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [personaToDelete, setPersonaToDelete] = useState<Persona | null>(null);
 
-  // THE FIX: We explicitly tell TypeScript that useMemo will return a string array.
   const categories = useMemo<string[]>(() => {
     if (!personas) return ["All"];
-    // By using a typed Persona, TypeScript knows `p.category` is a string.
     const uniqueCategories = new Set(personas.map((p: Persona) => p.category));
     return ["All", ...Array.from(uniqueCategories)];
   }, [personas]);
@@ -119,23 +115,23 @@ export default function PersonaGrid({
     <>
       <div className="mb-8 flex flex-col gap-4 md:flex-row">
         <div className="relative flex-grow">
-          <FiSearch className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2" />
+          <FiSearch className="text-muted-foreground absolute top-1/2 left-4 -translate-y-1/2" />
           <Input
             type="text"
-            placeholder="Search for a persona..."
+            placeholder="Search personas..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-12"
           />
         </div>
         <TransitionLink href="/personas/create">
-          <Button>
+          <Button className="w-full md:w-auto">
             <FiPlus className="mr-2 h-4 w-4" />
             Find Persona
           </Button>
         </TransitionLink>
         <TransitionLink href="/personas/custom">
-          <Button variant="secondary">
+          <Button variant="secondary" className="w-full md:w-auto">
             <FiPenTool className="mr-2 h-4 w-4" />
             Create Custom
           </Button>
@@ -143,7 +139,6 @@ export default function PersonaGrid({
       </div>
 
       <div className="mb-12 flex flex-wrap justify-center gap-2">
-        {/* Now this map works correctly because `categories` is a string[] */}
         {categories.map((category) => (
           <Button
             key={category}
@@ -156,7 +151,7 @@ export default function PersonaGrid({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredPersonas.map((persona) => {
           const canManage =
             session?.user &&
@@ -165,49 +160,50 @@ export default function PersonaGrid({
           return (
             <Card
               key={persona._id}
-              className="group flex flex-col overflow-hidden transition-colors"
+              className="group hover:shadow-primary/40 flex transform flex-col overflow-hidden transition-all duration-300 hover:scale-105"
             >
               <CardHeader className="relative p-0">
                 <img
                   src={persona.imageUrl}
                   alt={persona.name}
-                  className="h-48 w-full object-cover"
+                  className="h-56 w-full object-cover"
                 />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                 {!persona.isDefault && canManage && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        className="absolute top-2 right-2 h-8 w-8"
-                      >
-                        <FiMoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem disabled>
-                        {" "}
-                        {/* Edit feature not yet built */}
-                        <FiEdit className="mr-2 h-4 w-4" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDeleteClick(persona)}
-                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                      >
-                        <FiTrash2 className="mr-2 h-4 w-4" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="absolute top-2 right-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-8 w-8 rounded-full"
+                        >
+                          <FiMoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem disabled>
+                          <FiEdit className="mr-2 h-4 w-4" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteClick(persona)}
+                          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                        >
+                          <FiTrash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )}
+                <CardTitle className="absolute bottom-4 left-4 text-xl text-white">
+                  {persona.name}
+                </CardTitle>
               </CardHeader>
               <CardContent className="flex-grow p-4">
                 <Badge variant="secondary" className="mb-2">
                   {persona.category}
                 </Badge>
-                <CardTitle className="mb-1 truncate text-xl">
-                  {persona.name}
-                </CardTitle>
-                <p className="text-muted-foreground line-clamp-2 text-sm">
+                <p className="text-muted-foreground line-clamp-3 text-sm">
                   {persona.description}
                 </p>
               </CardContent>

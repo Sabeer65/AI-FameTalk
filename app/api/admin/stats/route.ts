@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
-import Persona from "@/models/Persona";
 import ChatSession from "@/models/ChatSession";
 
 export async function GET() {
@@ -16,14 +15,34 @@ export async function GET() {
   try {
     await dbConnect();
 
-    const userCount = await User.countDocuments();
-    const personaCount = await Persona.countDocuments();
-    const chatCount = await ChatSession.countDocuments();
+    const totalUsers = await User.countDocuments();
+    const premiumUsers = await User.countDocuments({
+      subscriptionTier: "premium",
+    });
+
+    const totalMessagesAggregation = await ChatSession.aggregate([
+      {
+        $project: {
+          messageCount: { $size: "$messages" },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalMessages: { $sum: "$messageCount" },
+        },
+      },
+    ]);
+
+    const totalMessages =
+      totalMessagesAggregation.length > 0
+        ? totalMessagesAggregation[0].totalMessages
+        : 0;
 
     const stats = {
-      userCount,
-      personaCount,
-      chatCount,
+      totalUsers,
+      premiumUsers,
+      totalMessages,
     };
 
     return NextResponse.json(stats, { status: 200 });

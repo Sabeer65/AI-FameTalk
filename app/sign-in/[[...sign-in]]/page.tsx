@@ -1,69 +1,78 @@
-"use client";
-
-import { signIn } from "next-auth/react";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FaGoogle } from "react-icons/fa";
+import { signIn } from "next-auth/react";
+import { FcGoogle } from "react-icons/fc";
+import TransitionLink from "@/components/TransitionLink";
+
+// This is a server component to handle the form submission logic.
+// The actual sign-in actions would be handled by NextAuth.
+// This is a mock-up to demonstrate UI.
 
 export default function SignInPage() {
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const email = formData.get("email") as string;
-    // This triggers the EmailProvider flow
-    await signIn("email", { email, callbackUrl: "/" });
-  };
-
   return (
-    <div className="flex items-center justify-center py-20">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Welcome</CardTitle>
+    <div className="flex min-h-[calc(100vh-200px)] items-center justify-center">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-3xl font-bold">Welcome Back!</CardTitle>
           <CardDescription>
-            Sign in or create an account to continue.
+            Sign in to continue your conversations.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4">
-          {/* This triggers the GoogleProvider flow */}
-          <Button
-            variant="outline"
-            onClick={() => signIn("google", { callbackUrl: "/" })}
-          >
-            <FaGoogle className="mr-2 h-4 w-4" />
-            Sign in with Google
-          </Button>
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
+        <CardContent>
+          <div className="space-y-4">
+            <form action="/api/auth/signin/google" method="POST">
+              <Button variant="outline" className="w-full" type="submit">
+                <FcGoogle className="mr-2 h-5 w-5" />
+                Sign in with Google
+              </Button>
+            </form>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card text-muted-foreground px-2">
+                  Or continue with
+                </span>
+              </div>
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background text-muted-foreground px-2">
-                Or continue with email
-              </span>
-            </div>
+            <form
+              action="/api/auth/signin/email"
+              method="POST"
+              className="space-y-4"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="m@example.com"
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full">
+                Sign in with Email
+              </Button>
+            </form>
+            <p className="text-muted-foreground text-center text-sm">
+              Don't have an account?{" "}
+              <TransitionLink
+                href="/api/auth/signin"
+                className="text-primary font-bold hover:underline"
+              >
+                Sign Up
+              </TransitionLink>
+            </p>
           </div>
-          <form onSubmit={handleSubmit} className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="name@example.com"
-              required
-            />
-            <Button type="submit" className="w-full">
-              Sign in with Email
-            </Button>
-          </form>
         </CardContent>
       </Card>
     </div>

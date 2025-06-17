@@ -6,6 +6,8 @@ import ChatWindow from "@/components/ChatWindow";
 import { FiMenu, FiX } from "react-icons/fi";
 import { toast } from "sonner";
 import TypingLoader from "./TypingLoader";
+import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 interface Persona {
   _id: string;
@@ -30,6 +32,7 @@ interface ChatLayoutProps {
 }
 
 export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
+  const router = useRouter();
   const [sessions, setSessions] = useState<PopulatedChatSession[]>([]);
   const [allPersonas, setAllPersonas] = useState<Persona[]>([]);
   const [activePersonaId, setActivePersonaId] = useState<string | null>(
@@ -61,7 +64,7 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
         }
       } catch (error) {
         console.error(error);
-        toast.error("Failed to load data.");
+        toast.error("Failed to load chat data.");
       } finally {
         setIsLoading(false);
       }
@@ -143,14 +146,14 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
 
   if (isLoading) {
     return (
-      <div className="flex h-[calc(100vh-69px)] flex-1 items-center justify-center">
+      <div className="flex h-full flex-1 items-center justify-center">
         <TypingLoader />
       </div>
     );
   }
 
   return (
-    <div className="text-foreground relative flex h-[calc(100vh-69px)] overflow-hidden">
+    <div className="text-foreground bg-card relative flex h-[calc(100vh-100px)] overflow-hidden rounded-lg border shadow-2xl">
       <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
         className="bg-card absolute top-4 left-4 z-30 rounded-full p-2 md:hidden"
@@ -170,7 +173,9 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
         <ChatWindow
           persona={activeChatData?.persona || null}
           initialMessages={activeChatData?.messages || []}
+          sessionId={activeChatData?.sessionId || null}
           key={activeChatData?.persona?._id || "no-chat"}
+          onNewMessage={() => router.refresh()}
         />
       </div>
     </div>

@@ -1,278 +1,224 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { useSession } from "next-auth/react";
-import {
-  FiSend,
-  FiMessageSquare,
-  FiVolume2,
-  FiMic,
-  FiRadio,
-} from "react-icons/fi";
-import TypingLoader from "./TypingLoader";
-import { Button } from "./ui/button";
-import TextareaAutosize from "react-textarea-autosize";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import TransitionLink from "./TransitionLink";
-import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { useState, useRef, useEffect, useContext } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FiSend, FiMic, FiSquare, FiMessageSquare } from "react-icons/fi";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { toast } from "sonner";
+import { VoiceContext } from "./VoiceProvider";
+import TypingLoader from "./TypingLoader";
+import TransitionLink from "./TransitionLink";
+import { cn } from "@/lib/utils";
 
-// --- Data Structures ---
 interface Persona {
   _id: string;
   name: string;
   imageUrl: string;
-  category: string;
-  systemPrompt: string;
+  description: string;
   gender: "male" | "female" | "neutral";
 }
 interface Message {
   role: "user" | "model";
   parts: { text: string }[];
 }
-// THE FIX: Updated the props interface
 interface ChatWindowProps {
   persona: Persona | null;
   initialMessages: Message[];
+  sessionId: string | null;
+  onNewMessage: () => void;
 }
-
-const GUEST_MESSAGE_LIMIT = 5;
 
 export default function ChatWindow({
   persona,
   initialMessages,
+  sessionId,
+  onNewMessage,
 }: ChatWindowProps) {
-  const { status } = useSession();
-  // This component now manages its own message state, starting with the initial messages
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [userInput, setUserInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showLimitModal, setShowLimitModal] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const { speak } = useTextToSpeech();
-  const handleFinalTranscript = (transcript: string) => {
-    setUserInput((prev) => (prev + " " + transcript).trim());
-  };
+  const [optimisticMessages, setOptimisticMessages] =
+    useState<Message[]>(initialMessages);
+  const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const voiceContext = useContext(VoiceContext);
   const { isListening, interimTranscript, startListening, stopListening } =
-    useSpeechToText(handleFinalTranscript);
+    useSpeechToText((finalTranscript) => {
+      setInput((prev) => prev + finalTranscript);
+    });
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // This effect syncs the state if the initial messages from the parent change (i.e., when switching chats)
   useEffect(() => {
-    setMessages(initialMessages);
+    setOptimisticMessages(initialMessages);
   }, [initialMessages]);
 
   useEffect(() => {
-    if (isListening) setUserInput(interimTranscript);
+    if (isListening) {
+      setInput(interimTranscript);
+    }
   }, [interimTranscript, isListening]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-  useEffect(scrollToBottom, [messages, isLoading]);
-
-  const handleFormSubmit = async () => {
-    if (!userInput.trim() || !persona || isLoading) return;
-    if (isListening) stopListening();
-
-    if (status === "unauthenticated") {
-      const guestCount = parseInt(
-        localStorage.getItem("guestMessageCount") || "0",
-        10,
-      );
-      if (guestCount >= GUEST_MESSAGE_LIMIT) {
-        setShowLimitModal(true);
-        return;
-      }
-      localStorage.setItem("guestMessageCount", (guestCount + 1).toString());
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
+  }, [optimisticMessages, isSending]);
 
-    const newUserMessage: Message = {
-      role: "user",
-      parts: [{ text: userInput }],
-    };
-    const currentMessagesForUI = [...messages, newUserMessage];
-    setMessages(currentMessagesForUI);
+  const handleSend = async () => {
+    if (!input.trim() || !persona) return;
 
-    const textToSubmit = userInput;
-    setUserInput("");
-    setIsLoading(true);
+    const userMessage: Message = { role: "user", parts: [{ text: input }] };
+    setOptimisticMessages((prev) => [...prev, userMessage]);
+    const messageToSend = input;
+    setInput("");
+    setIsSending(true);
 
     try {
-      // The history sent to the API is now based on the local state
-      const chatHistory = messages[0]?.parts[0].text.startsWith("Hello!")
-        ? messages.slice(1)
-        : messages;
-
-      const response = await fetch("/api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userMessage: textToSubmit,
-          chatHistory: chatHistory,
-          systemPrompt: persona.systemPrompt,
+          message: messageToSend,
           personaId: persona._id,
+          sessionId: sessionId,
         }),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "API request failed.");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "API error");
       }
+      const data = await res.json();
+      const modelMessage: Message = {
+        role: "model",
+        parts: [{ text: data.text }],
+      };
 
-      const data = await response.json();
-      const botMessage: Message = {
-        role: "model",
-        parts: [{ text: data.botMessage }],
-      };
-      setMessages((prev) => [...prev, botMessage]); // Update state with the new bot message
-      speak(botMessage.parts[0].text, persona.gender);
+      setOptimisticMessages((prev) => [...prev, modelMessage]);
+      onNewMessage();
+      voiceContext?.speak({ text: data.text, gender: persona.gender });
     } catch (error: any) {
-      const errorMessage: Message = {
-        role: "model",
-        parts: [{ text: error.message }],
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      toast.error("Message failed", { description: error.message });
+      setOptimisticMessages(initialMessages);
     } finally {
-      setIsLoading(false);
+      setIsSending(false);
     }
   };
 
-  const handleMicClick = () => {
-    if (isListening) stopListening();
-    else {
-      setUserInput("");
+  const handleRecord = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      setInput("");
       startListening();
     }
-  };
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleFormSubmit();
-    }
-  };
-  const handleSpeakClick = (text: string) => {
-    if (persona) speak(text, persona.gender);
   };
 
   if (!persona) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center p-4 text-center">
-        <FiMessageSquare className="text-muted-foreground mb-4" size={64} />
-        <h2 className="text-2xl font-bold">Select a chat to begin</h2>
-        <p className="text-muted-foreground">
-          Choose a persona from the sidebar to start a conversation.
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+        <FiMessageSquare className="text-muted-foreground h-16 w-16" />
+        <h2 className="text-2xl font-bold">Select a Chat</h2>
+        <p className="text-muted-foreground max-w-md">
+          Choose an existing conversation or start a new one.
         </p>
+        <TransitionLink href="/personas">
+          <Button>Explore Personas</Button>
+        </TransitionLink>
       </div>
     );
   }
 
   return (
-    <>
-      <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
-        {/* Dialog content */}
-      </Dialog>
-
-      <div className="bg-background text-foreground flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b p-4">
-          <div className="flex items-center">
-            <img
-              src={persona.imageUrl}
-              alt={persona.name}
-              className="mr-4 h-12 w-12 rounded-full object-cover"
-            />
-            <div>
-              <h2 className="text-xl font-bold">{persona.name}</h2>
-              <p className="text-muted-foreground text-sm">
-                {persona.category}
-              </p>
+    <div className="flex h-full flex-col">
+      <header className="flex items-center gap-4 border-b p-4">
+        <Avatar>
+          <AvatarImage src={persona.imageUrl} />
+          <AvatarFallback>{persona.name.charAt(0)}</AvatarFallback>
+        </Avatar>
+        <div>
+          <h2 className="font-bold">{persona.name}</h2>
+          <p className="text-muted-foreground line-clamp-1 text-sm">
+            {persona.description}
+          </p>
+        </div>
+      </header>
+      <div ref={scrollRef} className="flex-1 space-y-6 overflow-y-auto p-6">
+        {optimisticMessages.map((msg, index) => (
+          <div
+            key={index}
+            className={cn("flex items-start gap-4", {
+              "justify-end": msg.role === "user",
+            })}
+          >
+            {msg.role === "model" && (
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={persona.imageUrl} />
+                <AvatarFallback>{persona.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+            )}
+            <div
+              className={cn("max-w-lg rounded-xl px-4 py-3 text-sm shadow-md", {
+                "bg-primary text-primary-foreground rounded-br-none":
+                  msg.role === "user",
+                "bg-secondary text-secondary-foreground rounded-bl-none":
+                  msg.role === "model",
+              })}
+            >
+              {msg.parts.map((part, i) => (
+                <p key={i}>{part.text}</p>
+              ))}
             </div>
           </div>
-        </header>
-
-        <main className="flex-1 space-y-4 overflow-y-auto p-6">
-          {messages.map((msg, index) => (
-            <div
-              key={index}
-              className={`group relative flex items-end gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-lg rounded-lg p-3 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
-              >
-                <p className="whitespace-pre-wrap">{msg.parts[0].text}</p>
-              </div>
-              {msg.role === "model" && persona && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
-                  onClick={() => handleSpeakClick(msg.parts[0].text)}
-                >
-                  <FiVolume2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          ))}
-          {isLoading && (
-            <div className="flex justify-start">
+        ))}
+        {isSending && (
+          <div className="flex items-start gap-4">
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={persona.imageUrl} />
+              <AvatarFallback>{persona.name.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="bg-secondary rounded-xl rounded-bl-none px-4 py-3 shadow-md">
               <TypingLoader />
             </div>
-          )}
-          <div ref={messagesEndRef} />
-        </main>
-
-        <footer className="bg-background border-t p-4">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleFormSubmit();
+          </div>
+        )}
+      </div>
+      <footer className="border-t p-4">
+        <div className="relative">
+          <Textarea
+            placeholder="Type your message or use the mic..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
             }}
-            className="flex items-start gap-2"
-          >
+            rows={1}
+            className="min-h-[48px] resize-none pr-32"
+          />
+          <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2">
             <Button
               type="button"
-              variant={isListening ? "destructive" : "ghost"}
+              variant="ghost"
               size="icon"
-              onClick={handleMicClick}
-              aria-label="Use microphone"
+              onClick={handleRecord}
+              className={cn({
+                "bg-destructive text-destructive-foreground": isListening,
+              })}
             >
-              {isListening ? (
-                <FiRadio className="h-5 w-5 animate-pulse" />
-              ) : (
-                <FiMic className="h-5 w-5" />
-              )}
+              {isListening ? <FiSquare /> : <FiMic />}
             </Button>
-            <TextareaAutosize
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                isListening ? "Listening..." : `Message ${persona.name}...`
-              }
-              className="bg-muted focus-visible:ring-ring flex-1 resize-none rounded-lg p-3 focus-visible:ring-2"
-              disabled={isLoading}
-              autoComplete="off"
-              rows={1}
-              maxRows={5}
-            />
             <Button
-              type="submit"
-              size="icon"
-              disabled={isLoading || !userInput.trim()}
-              aria-label="Send message"
+              type="button"
+              onClick={handleSend}
+              disabled={!input.trim() || isSending}
             >
-              <FiSend className="h-4 w-4" />
+              <FiSend />
             </Button>
-          </form>
-        </footer>
-      </div>
-    </>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { FiSearch, FiCheck } from "react-icons/fi";
+import { FiSearch, FiCheck, FiLoader } from "react-icons/fi";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -31,7 +31,8 @@ export default function FindPersonaPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [foundPersona, setFoundPersona] = useState<PersonaProfile | null>(null);
 
-  const handleLookup = async () => {
+  const handleLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!lookupName) return;
     setIsLookingUp(true);
     setFoundPersona(null);
@@ -59,7 +60,7 @@ export default function FindPersonaPage() {
       const response = await fetch("/api/personas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(foundPersona), // Send the found persona data to the API
+        body: JSON.stringify(foundPersona),
       });
 
       const data = await response.json();
@@ -69,7 +70,7 @@ export default function FindPersonaPage() {
       toast.success("Persona Created!", {
         description: `${data.name} has been added to your library.`,
       });
-      router.push("/personas"); // Redirect to the main library page on success
+      router.push("/personas");
     } catch (err: any) {
       toast.error("Creation Failed", { description: err.message });
     } finally {
@@ -78,12 +79,12 @@ export default function FindPersonaPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
+    <div className="mx-auto max-w-2xl space-y-8">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold tracking-tighter">
           Create from a Real Person
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-muted-foreground mt-2">
           Enter a name, and we'll use AI to generate a profile for you to
           confirm.
         </p>
@@ -97,7 +98,10 @@ export default function FindPersonaPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <form
+            onSubmit={handleLookup}
+            className="flex flex-col gap-4 sm:flex-row"
+          >
             <Input
               placeholder="e.g., Albert Einstein, Cleopatra..."
               value={lookupName}
@@ -105,25 +109,23 @@ export default function FindPersonaPage() {
               disabled={isLookingUp || isCreating}
             />
             <Button
-              onClick={handleLookup}
+              type="submit"
               disabled={isLookingUp || isCreating || !lookupName}
               className="w-full sm:w-auto"
             >
               {isLookingUp ? (
-                "Searching..."
+                <FiLoader className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  <FiSearch className="mr-2 h-4 w-4" />
-                  Find Persona
-                </>
+                <FiSearch className="mr-2 h-4 w-4" />
               )}
+              Find Persona
             </Button>
-          </div>
+          </form>
         </CardContent>
       </Card>
 
       {foundPersona && (
-        <Card>
+        <Card className="animate-in fade-in-50">
           <CardHeader>
             <CardTitle>Is this correct?</CardTitle>
             <CardDescription>
@@ -152,12 +154,11 @@ export default function FindPersonaPage() {
               disabled={isCreating}
             >
               {isCreating ? (
-                "Saving..."
+                <FiLoader className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  <FiCheck className="mr-2 h-4 w-4" /> Yes, Create This Bot
-                </>
+                <FiCheck className="mr-2 h-4 w-4" />
               )}
+              Yes, Create This Bot
             </Button>
           </CardContent>
         </Card>

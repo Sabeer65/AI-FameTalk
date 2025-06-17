@@ -1,63 +1,59 @@
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from "../api/auth/[...nextauth]/route";
 import { redirect } from "next/navigation";
-import dbConnect from "@/lib/dbConnect";
-import User from "@/models/User";
-
+import ProfileDashboard from "@/components/ProfileDashboard";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import ProfileDashboard from "@/components/ProfileDashboard"; // Import our new client component
-
-const FREE_TIER_PERSONA_LIMIT = 3;
-const FREE_TIER_MESSAGE_LIMIT = 100;
-
-async function getUserData() {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user?.id) {
-    return null;
-  }
-  await dbConnect();
-  const user = await User.findById(session.user.id);
-  if (!user) return null;
-
-  return JSON.parse(JSON.stringify(user));
-}
+import { FiUser, FiMail, FiStar } from "react-icons/fi";
 
 export default async function ProfilePage() {
-  const userData = await getUserData();
+  const session = await getServerSession(authOptions);
 
-  if (!userData) {
+  if (!session) {
     redirect("/sign-in");
   }
 
   return (
     <div className="space-y-8">
-      {/* User Profile Header stays on the server */}
-      <div className="flex items-center space-x-6">
-        <Avatar className="border-primary h-24 w-24 border-2">
-          <AvatarImage
-            src={userData.image || ""}
-            alt={userData.name || "User"}
-          />
-          <AvatarFallback className="text-3xl">
-            {userData.name?.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">{userData.name}</h1>
-          <p className="text-muted-foreground">{userData.email}</p>
-        </div>
-      </div>
-
-      {/* We render the client component and pass the data to it as props */}
-      <ProfileDashboard
-        userData={{
-          tier: userData.subscriptionTier,
-          personasCreated: userData.personasCreated,
-          messagesSent: userData.monthlyMessageCount,
-        }}
-        personaLimit={FREE_TIER_PERSONA_LIMIT}
-        messageLimit={FREE_TIER_MESSAGE_LIMIT}
-      />
+      <Card className="overflow-hidden">
+        <CardHeader className="bg-primary/10 p-6">
+          <div className="flex flex-col items-center gap-6 sm:flex-row">
+            <Avatar className="border-primary h-24 w-24 border-4">
+              <AvatarImage
+                src={session.user.image ?? ""}
+                alt={session.user.name ?? "User"}
+              />
+              <AvatarFallback className="text-4xl">
+                {session.user.name?.charAt(0).toUpperCase() || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="text-center sm:text-left">
+              <CardTitle className="text-4xl font-bold">
+                {session.user.name}
+              </CardTitle>
+              <div className="mt-2 flex flex-wrap justify-center gap-4 sm:justify-start">
+                <Badge
+                  variant={
+                    session.user.tier === "Premium" ? "default" : "secondary"
+                  }
+                  className="flex items-center gap-2 px-3 py-1 text-sm"
+                >
+                  {session.user.tier === "Premium" ? <FiStar /> : <FiUser />}
+                  {session.user.tier} Plan
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="text-muted-foreground flex items-center gap-4">
+            <FiMail className="h-5 w-5" />
+            <span>{session.user.email}</span>
+          </div>
+        </CardContent>
+      </Card>
+      <ProfileDashboard session={session} />
     </div>
   );
 }

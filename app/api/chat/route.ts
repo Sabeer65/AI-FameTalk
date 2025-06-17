@@ -3,103 +3,81 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import dbConnect from "@/lib/dbConnect";
 import ChatSession from "@/models/ChatSession";
-import User from "@/models/User"; // Import the User model
-import { Types } from "mongoose";
+import Persona from "@/models/Persona";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const FREE_TIER_MESSAGE_LIMIT = 100;
-
-interface RequestBody {
-  userMessage: string;
-  chatHistory: { role: "user" | "model"; parts: { text: string }[] }[];
-  systemPrompt: string;
-  personaId: string;
-}
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user?.id) {
-    return NextResponse.json(
-      { error: "Unauthorized. Please sign in." },
-      { status: 401 },
-    );
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = session.user.id;
-
   try {
-    await dbConnect();
+    const {
+      message: userMessage,
+      personaId,
+      sessionId: existingSessionId,
+    } = await request.json();
 
-    // --- Step 1: Check User's Message Limit ---
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
-    }
-
-    if (
-      user.subscriptionTier === "free" &&
-      user.monthlyMessageCount >= FREE_TIER_MESSAGE_LIMIT
-    ) {
+    if (!userMessage || !personaId) {
       return NextResponse.json(
-        {
-          error: `Free tier message limit of ${FREE_TIER_MESSAGE_LIMIT} reached. Please upgrade to continue.`,
-        },
-        { status: 429 }, // 429 is the "Too Many Requests" status code
+        { error: "Message and personaId are required" },
+        { status: 400 },
       );
     }
 
-    // --- Step 2: Get AI Response (No change here) ---
-    const { userMessage, chatHistory, systemPrompt, personaId }: RequestBody =
-      await request.json();
+    await dbConnect();
 
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) throw new Error("Gemini API key not configured");
-
-    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
-
-    const payload = {
-      contents: [
-        ...chatHistory,
-        { role: "user", parts: [{ text: userMessage }] },
-      ],
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    };
-
-    const apiResponse = await fetch(GEMINI_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!apiResponse.ok) {
-      throw new Error("Failed to get response from Gemini API");
+    const persona = await Persona.findById(personaId);
+    if (!persona) {
+      return NextResponse.json({ error: "Persona not found" }, { status: 404 });
     }
 
-    const responseData = await apiResponse.json();
-    const botResponseText =
-      responseData.candidates[0]?.content?.parts[0]?.text ||
-      "I'm sorry, I couldn't generate a response.";
+    let chatSession;
+    if (existingSessionId) {
+      chatSession = await ChatSession.findById(existingSessionId);
+    }
 
-    // --- Step 3: Increment User's Message Count & Save Chat ---
-    // We only increment the count if the API call was successful.
-    await User.updateOne({ _id: userId }, { $inc: { monthlyMessageCount: 1 } });
+    if (!chatSession) {
+      chatSession = new ChatSession({
+        userId: session.user.id,
+        personaId: personaId,
+        messages: [],
+      });
+    }
 
-    const newUserMessageDoc = { role: "user", parts: [{ text: userMessage }] };
-    const newBotMessageDoc = {
-      role: "model",
-      parts: [{ text: botResponseText }],
-    };
+    const chatHistory = chatSession.messages.map((msg: any) => ({
+      role: msg.role,
+      parts: msg.parts.map((part: any) => ({ text: part.text })),
+    }));
 
-    await ChatSession.findOneAndUpdate(
-      { userId: userId, personaId: new Types.ObjectId(personaId) },
-      { $push: { messages: { $each: [newUserMessageDoc, newBotMessageDoc] } } },
-      { upsert: true, new: true },
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const chat = model.startChat({
+      history: chatHistory,
+      generationConfig: {
+        maxOutputTokens: 200,
+      },
+      systemInstruction: persona.systemPrompt,
+    });
+
+    const result = await chat.sendMessage(userMessage);
+    const response = result.response;
+    const text = response.text();
+
+    chatSession.messages.push({ role: "user", parts: [{ text: userMessage }] });
+    chatSession.messages.push({ role: "model", parts: [{ text: text }] });
+
+    await chatSession.save();
+
+    return NextResponse.json(
+      { text: text, newSessionId: chatSession._id.toString() },
+      { status: 200 },
     );
-
-    return NextResponse.json({ botMessage: botResponseText }, { status: 200 });
   } catch (error) {
-    console.error("API Route Error:", error);
+    console.error("Chat API Error:", error);
     return NextResponse.json(
       { error: "An internal server error occurred" },
       { status: 500 },
