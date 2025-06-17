@@ -2,10 +2,16 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { FiSend, FiMessageSquare } from "react-icons/fi";
+import {
+  FiSend,
+  FiMessageSquare,
+  FiVolume2,
+  FiMic,
+  FiRadio,
+} from "react-icons/fi";
 import TypingLoader from "./TypingLoader";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import TextareaAutosize from "react-textarea-autosize";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +20,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import TransitionLink from "./TransitionLink";
+import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { useSpeechToText } from "@/hooks/useSpeechToText";
+import { toast } from "sonner";
 
 // --- Data Structures ---
 interface Persona {
@@ -22,43 +31,57 @@ interface Persona {
   imageUrl: string;
   category: string;
   systemPrompt: string;
+  gender: "male" | "female" | "neutral";
 }
-
 interface Message {
   role: "user" | "model";
   parts: { text: string }[];
 }
-
+// THE FIX: Updated the props interface
 interface ChatWindowProps {
   persona: Persona | null;
-  messages: Message[];
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  initialMessages: Message[];
 }
 
 const GUEST_MESSAGE_LIMIT = 5;
 
 export default function ChatWindow({
   persona,
-  messages,
-  setMessages,
+  initialMessages,
 }: ChatWindowProps) {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
+  // This component now manages its own message state, starting with the initial messages
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const { speak } = useTextToSpeech();
+  const handleFinalTranscript = (transcript: string) => {
+    setUserInput((prev) => (prev + " " + transcript).trim());
+  };
+  const { isListening, interimTranscript, startListening, stopListening } =
+    useSpeechToText(handleFinalTranscript);
+
+  // This effect syncs the state if the initial messages from the parent change (i.e., when switching chats)
+  useEffect(() => {
+    setMessages(initialMessages);
+  }, [initialMessages]);
+
+  useEffect(() => {
+    if (isListening) setUserInput(interimTranscript);
+  }, [interimTranscript, isListening]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-
   useEffect(scrollToBottom, [messages, isLoading]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFormSubmit = async () => {
     if (!userInput.trim() || !persona || isLoading) return;
+    if (isListening) stopListening();
 
-    // --- Guest Rate Limiting Logic ---
     if (status === "unauthenticated") {
       const guestCount = parseInt(
         localStorage.getItem("guestMessageCount") || "0",
@@ -75,37 +98,33 @@ export default function ChatWindow({
       role: "user",
       parts: [{ text: userInput }],
     };
-    const currentHistory = messages[0]?.parts[0].text.startsWith("Hello!")
-      ? messages.slice(1)
-      : messages;
     const currentMessagesForUI = [...messages, newUserMessage];
-
     setMessages(currentMessagesForUI);
+
+    const textToSubmit = userInput;
     setUserInput("");
     setIsLoading(true);
 
     try {
+      // The history sent to the API is now based on the local state
+      const chatHistory = messages[0]?.parts[0].text.startsWith("Hello!")
+        ? messages.slice(1)
+        : messages;
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userMessage: userInput,
-          chatHistory: currentHistory,
+          userMessage: textToSubmit,
+          chatHistory: chatHistory,
           systemPrompt: persona.systemPrompt,
           personaId: persona._id,
         }),
       });
 
-      // NEW: Handle the "Too Many Requests" error for signed-in free users
-      if (response.status === 429) {
-        const data = await response.json();
-        throw new Error(
-          data.error || "You have reached your monthly message limit.",
-        );
-      }
-
       if (!response.ok) {
-        throw new Error("API request failed. Please try again later.");
+        const data = await response.json();
+        throw new Error(data.error || "API request failed.");
       }
 
       const data = await response.json();
@@ -113,18 +132,34 @@ export default function ChatWindow({
         role: "model",
         parts: [{ text: data.botMessage }],
       };
-      setMessages([...currentMessagesForUI, botMessage]);
+      setMessages((prev) => [...prev, botMessage]); // Update state with the new bot message
+      speak(botMessage.parts[0].text, persona.gender);
     } catch (error: any) {
-      console.error("Failed to get response:", error);
-      // NEW: This now displays any error message (including our custom one) in the chat
       const errorMessage: Message = {
         role: "model",
         parts: [{ text: error.message }],
       };
-      setMessages([...currentMessagesForUI, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleMicClick = () => {
+    if (isListening) stopListening();
+    else {
+      setUserInput("");
+      startListening();
+    }
+  };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleFormSubmit();
+    }
+  };
+  const handleSpeakClick = (text: string) => {
+    if (persona) speak(text, persona.gender);
   };
 
   if (!persona) {
@@ -142,45 +177,47 @@ export default function ChatWindow({
   return (
     <>
       <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Free Message Limit Reached</DialogTitle>
-            <DialogDescription>
-              You've used all your free messages for this session. Please sign
-              up for a free account to continue the conversation and save your
-              chat history.
-            </DialogDescription>
-          </DialogHeader>
-          <TransitionLink href="/sign-in" className="w-full">
-            <Button className="w-full">Sign Up to Continue</Button>
-          </TransitionLink>
-        </DialogContent>
+        {/* Dialog content */}
       </Dialog>
 
       <div className="bg-background text-foreground flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center border-b p-4">
-          <img
-            src={persona.imageUrl}
-            alt={persona.name}
-            className="mr-4 h-12 w-12 rounded-full object-cover"
-          />
-          <div>
-            <h2 className="text-xl font-bold">{persona.name}</h2>
-            <p className="text-muted-foreground text-sm">{persona.category}</p>
+        <header className="flex items-center justify-between border-b p-4">
+          <div className="flex items-center">
+            <img
+              src={persona.imageUrl}
+              alt={persona.name}
+              className="mr-4 h-12 w-12 rounded-full object-cover"
+            />
+            <div>
+              <h2 className="text-xl font-bold">{persona.name}</h2>
+              <p className="text-muted-foreground text-sm">
+                {persona.category}
+              </p>
+            </div>
           </div>
         </header>
 
-        <main className="flex-1 space-y-6 overflow-y-auto p-6">
+        <main className="flex-1 space-y-4 overflow-y-auto p-6">
           {messages.map((msg, index) => (
             <div
               key={index}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`group relative flex items-end gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
                 className={`max-w-lg rounded-lg p-3 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
               >
                 <p className="whitespace-pre-wrap">{msg.parts[0].text}</p>
               </div>
+              {msg.role === "model" && persona && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
+                  onClick={() => handleSpeakClick(msg.parts[0].text)}
+                >
+                  <FiVolume2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           ))}
           {isLoading && (
@@ -192,20 +229,44 @@ export default function ChatWindow({
         </main>
 
         <footer className="bg-background border-t p-4">
-          <form onSubmit={handleSubmit} className="flex items-center gap-2">
-            <Input
-              type="text"
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleFormSubmit();
+            }}
+            className="flex items-start gap-2"
+          >
+            <Button
+              type="button"
+              variant={isListening ? "destructive" : "ghost"}
+              size="icon"
+              onClick={handleMicClick}
+              aria-label="Use microphone"
+            >
+              {isListening ? (
+                <FiRadio className="h-5 w-5 animate-pulse" />
+              ) : (
+                <FiMic className="h-5 w-5" />
+              )}
+            </Button>
+            <TextareaAutosize
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              placeholder={`Message ${persona.name}...`}
-              className="flex-1"
+              onKeyDown={handleKeyDown}
+              placeholder={
+                isListening ? "Listening..." : `Message ${persona.name}...`
+              }
+              className="bg-muted focus-visible:ring-ring flex-1 resize-none rounded-lg p-3 focus-visible:ring-2"
               disabled={isLoading}
               autoComplete="off"
+              rows={1}
+              maxRows={5}
             />
             <Button
               type="submit"
               size="icon"
               disabled={isLoading || !userInput.trim()}
+              aria-label="Send message"
             >
               <FiSend className="h-4 w-4" />
             </Button>

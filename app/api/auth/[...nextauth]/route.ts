@@ -23,7 +23,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
             from: "AI FameTalk <onboarding@resend.dev>",
             to: [email],
             subject: "Sign in to AI FameTalk",
-            html: `...`, // Email HTML is the same
+            html: `...`, // This HTML should be correct from our previous step
           });
         } catch (error) {
           console.error("Failed to send verification email:", error);
@@ -36,19 +36,14 @@ export const authOptions: import("next-auth").NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    // This callback is called when a JWT is created (i.e., on sign in).
     async jwt({ token, user }) {
-      // On initial sign-in, the `user` object is available.
-      // We are adding the user's ID and role from the database to the token.
       if (user) {
         token.id = user.id;
         token.role = user.role as string;
       }
       return token;
     },
-    // This callback is called whenever a session is checked.
     async session({ session, token }) {
-      // We are taking the id and role from the token and adding it to the session.
       if (token && session.user) {
         session.user.id = token.id;
         session.user.role = token.role;

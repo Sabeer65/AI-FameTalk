@@ -33,11 +33,8 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log(
-      `[Step 1] Fetching persona details for "${name}" from Gemini...`,
-    );
     const generationPrompt = `
-      For the famous person named "${name}", generate a structured JSON object with the following exact keys: "name" (their full official name), "description" (a concise one-sentence summary), "category" (a single relevant category like 'Science', 'Art', 'History'), and "systemPrompt" (a detailed set of instructions for an AI to act as this person). Only return the raw JSON object.
+      For the famous person named "${name}", generate a structured JSON object with the following exact keys: "name" (their full official name), "description" (a concise one-sentence summary), "category" (a single relevant category), "gender" (which must be 'male', 'female', or 'neutral'), and "systemPrompt" (a detailed set of instructions for an AI to act as this person). Only return the raw JSON object.
     `;
 
     const geminiPayload = {
@@ -61,11 +58,7 @@ export async function POST(request: Request) {
       geminiData.candidates[0].content.parts[0].text,
     );
     const officialName = personaTextData.name;
-    console.log(`[Step 1] Success! Found details for "${officialName}".`);
 
-    console.log(
-      `[Step 2] Fetching image for "${officialName}" from SerpApi...`,
-    );
     const serpApiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(`${officialName} portrait`)}&tbm=isch&api_key=${SERPAPI_API_KEY}`;
 
     const serpApiResponse = await fetch(serpApiUrl);
@@ -77,7 +70,6 @@ export async function POST(request: Request) {
 
     if (!imageUrl)
       throw new Error(`Could not find a suitable image for "${officialName}".`);
-    console.log(`[Step 2] Success! Found image URL.`);
 
     const finalPersonaProfile = {
       ...personaTextData,

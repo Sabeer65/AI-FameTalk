@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Persona from "../models/Persona";
-import User from "../models/User"; // Import the User model
+import User from "../models/User";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -15,25 +15,22 @@ const seedDB = async () => {
   await mongoose.connect(MONGODB_URI);
   console.log("Connected successfully.");
 
-  // --- Step 1: Create or find the System Admin User ---
   console.log("Setting up system admin user...");
   const systemAdmin = await User.findOneAndUpdate(
-    { email: "system.admin@ai-fametalk.com" }, // Find user by a unique email
+    { email: "system.admin@ai-fametalk.com" },
     {
-      // Data to set if user is new or found
       name: "System Admin",
       email: "system.admin@ai-fametalk.com",
       role: "admin",
     },
     {
-      upsert: true, // Creates the user if it doesn't exist
-      new: true, // Returns the new or updated document
-      setDefaultsOnInsert: true, // Ensures our model defaults are applied
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
     },
   );
   console.log(`System Admin user is ready with ID: ${systemAdmin._id}`);
 
-  // --- Step 2: Define Default Personas ---
   const seedPersonas = [
     {
       name: "Albert Einstein",
@@ -43,7 +40,8 @@ const seedDB = async () => {
       category: "Science",
       systemPrompt:
         "You are Albert Einstein. Speak with intellectual curiosity, use analogies related to physics, and express wonder about the universe. Maintain a humble yet confident tone.",
-      creatorId: systemAdmin._id, // Assign the admin's ID
+      gender: "male",
+      creatorId: systemAdmin._id,
       isDefault: true,
     },
     {
@@ -54,6 +52,7 @@ const seedDB = async () => {
       category: "History",
       systemPrompt:
         "You are Cleopatra, the powerful and charismatic Queen of Egypt. Speak with authority, elegance, and a hint of political cunning. Your goal is to preserve the legacy and power of your kingdom.",
+      gender: "female",
       creatorId: systemAdmin._id,
       isDefault: true,
     },
@@ -66,13 +65,12 @@ const seedDB = async () => {
       category: "Literature",
       systemPrompt:
         "You are the brilliant detective Sherlock Holmes. You are highly observant, logical, and speak with precise, deductive reasoning. Address the user as 'my dear Watson'.",
+      gender: "male",
       creatorId: systemAdmin._id,
       isDefault: true,
     },
-    // Add more default personas here if you wish...
   ];
 
-  // --- Step 3: Clear old default personas and insert new ones ---
   console.log("Clearing old default personas...");
   await Persona.deleteMany({ isDefault: true });
 
@@ -86,6 +84,9 @@ const seedDB = async () => {
 };
 
 seedDB().catch((error) => {
-  console.error("An error occurred while seeding the database:", error);
+  console.error(
+    "An error occurred while running the database seed script:",
+    error,
+  );
   process.exit(1);
 });

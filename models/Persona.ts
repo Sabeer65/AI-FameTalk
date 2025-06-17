@@ -3,35 +3,38 @@ import { Schema, model, models, Types } from "mongoose";
 const PersonaSchema = new Schema({
   name: {
     type: String,
-    required: [true, "Please provide a name for this persona."],
-    maxlength: [60, "Name cannot be more than 60 characters"],
+    required: true,
   },
   description: {
     type: String,
-    required: [true, "Please provide a description."],
+    required: true,
   },
   systemPrompt: {
     type: String,
-    required: [true, "Please provide a system prompt for the AI."],
+    required: true,
   },
   category: {
     type: String,
-    required: [true, "Please specify a category."],
+    required: true,
   },
   imageUrl: {
     type: String,
-    required: [true, "Please provide an image URL."],
-  },
-  // --- NEW FIELD FOR OWNERSHIP ---
-  creatorId: {
-    type: Types.ObjectId,
-    ref: "User", // This creates a reference to a document in the 'User' collection
     required: true,
   },
-  // We can add a field to distinguish between default and user-created personas
+  creatorId: {
+    type: Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
   isDefault: {
     type: Boolean,
     default: false,
+  },
+  // --- NEW FIELD ---
+  gender: {
+    type: String,
+    enum: ["male", "female", "neutral"],
+    required: true,
   },
 });
 

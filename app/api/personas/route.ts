@@ -7,13 +7,14 @@ import Persona from "@/models/Persona";
 
 const FREE_TIER_PERSONA_LIMIT = 3;
 
+// This GET function fetches the personas for the main library page
 export async function GET() {
   try {
     await dbConnect();
-    // We fetch default personas AND user-created personas for the logged-in user
     const session = await getServerSession(authOptions);
     const userId = session?.user?.id;
 
+    // Build a query that finds default personas OR personas created by the current user
     const query = userId
       ? { $or: [{ isDefault: true }, { creatorId: userId }] }
       : { isDefault: true };
@@ -29,8 +30,9 @@ export async function GET() {
   }
 }
 
+// This POST function creates a new persona
 export async function POST(request: Request) {
-  // 1. AUTHENTICATION
+  // 1. AUTHENTICATION: Ensure user is logged in
   const session = await getServerSession(authOptions);
   if (!session || !session.user?.id) {
     return NextResponse.json(
@@ -42,10 +44,25 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { name, description, category, imageUrl, systemPrompt, isCustom } =
-      body;
+    const {
+      name,
+      description,
+      category,
+      imageUrl,
+      systemPrompt,
+      gender,
+      isCustom,
+    } = body;
 
-    if (!name || !description || !systemPrompt || !imageUrl || !category) {
+    // Basic validation for all required fields
+    if (
+      !name ||
+      !description ||
+      !systemPrompt ||
+      !imageUrl ||
+      !category ||
+      !gender
+    ) {
       return NextResponse.json(
         { error: "Missing required fields." },
         { status: 400 },
@@ -54,32 +71,37 @@ export async function POST(request: Request) {
 
     await dbConnect();
 
-    // 2. AUTHORIZATION & BUSINESS LOGIC
+    // 2. AUTHORIZATION & BUSINESS LOGIC: Check user's tier and limits
     const user = await User.findById(userId);
     if (!user) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
+    // Rule A: Block free users from creating custom personas
     if (isCustom && user.subscriptionTier === "free") {
       return NextResponse.json(
-        { error: "Creating custom personas is a premium feature." },
-        { status: 403 },
+        {
+          error:
+            "Creating custom personas is a premium feature. Please upgrade.",
+        },
+        { status: 403 }, // 403 Forbidden
       );
     }
 
+    // Rule B: Block free users if they've reached their persona creation limit
     if (
       user.subscriptionTier === "free" &&
       user.personasCreated >= FREE_TIER_PERSONA_LIMIT
     ) {
       return NextResponse.json(
         {
-          error: `Free tier limit of ${FREE_TIER_PERSONA_LIMIT} personas reached.`,
+          error: `Free tier limit of ${FREE_TIER_PERSONA_LIMIT} personas reached. Please upgrade.`,
         },
         { status: 403 },
       );
     }
 
-    // 3. IMAGE VALIDATION
+    // 3. IMAGE VALIDATION: Check if the image URL is valid
     try {
       const imageResponse = await fetch(imageUrl, { method: "HEAD" });
       if (
@@ -95,20 +117,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. DATABASE WRITE
+    // 4. DATABASE WRITE: Create the new persona and update the user's count
     const newPersona = await Persona.create({
       name,
       description,
       category,
       imageUrl,
       systemPrompt,
-      creatorId: userId,
-      isDefault: false,
+      gender,
+      creatorId: userId, // Link the persona to the logged-in user
+      isDefault: false, // User-created personas are never defaults
     });
 
+    // Increment the user's persona creation count
     await User.updateOne({ _id: userId }, { $inc: { personasCreated: 1 } });
 
-    return NextResponse.json(newPersona, { status: 201 });
+    return NextResponse.json(newPersona, { status: 201 }); // 201 Created
   } catch (error) {
     console.error("Create Persona API Error:", error);
     return NextResponse.json(

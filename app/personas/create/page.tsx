@@ -21,6 +21,7 @@ interface PersonaProfile {
   category: string;
   imageUrl: string;
   systemPrompt: string;
+  gender: "male" | "female" | "neutral";
 }
 
 export default function FindPersonaPage() {
@@ -58,7 +59,7 @@ export default function FindPersonaPage() {
       const response = await fetch("/api/personas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(foundPersona),
+        body: JSON.stringify(foundPersona), // Send the found persona data to the API
       });
 
       const data = await response.json();
@@ -68,7 +69,7 @@ export default function FindPersonaPage() {
       toast.success("Persona Created!", {
         description: `${data.name} has been added to your library.`,
       });
-      router.push("/personas");
+      router.push("/personas"); // Redirect to the main library page on success
     } catch (err: any) {
       toast.error("Creation Failed", { description: err.message });
     } finally {

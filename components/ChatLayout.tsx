@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import ChatSidebar from "@/components/ChatSidebar";
 import ChatWindow from "@/components/ChatWindow";
 import { FiMenu, FiX } from "react-icons/fi";
+import { toast } from "sonner";
+import TypingLoader from "./TypingLoader";
 
 interface Persona {
   _id: string;
@@ -11,118 +13,164 @@ interface Persona {
   imageUrl: string;
   description: string;
   category: string;
-  systemPrompt: string; // Add systemPrompt to the interface
+  systemPrompt: string;
+  gender: "male" | "female" | "neutral";
 }
-
 interface Message {
   role: "user" | "model";
   parts: { text: string }[];
 }
-
+interface PopulatedChatSession {
+  _id: string;
+  personaId: Persona;
+  messages: Message[];
+}
 interface ChatLayoutProps {
   initialPersonaId: string | null;
 }
 
 export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
-  const [personas, setPersonas] = useState<Persona[]>([]);
-  const [activeChatId, setActiveChatId] = useState<string | null>(
-    initialPersonaId
+  const [sessions, setSessions] = useState<PopulatedChatSession[]>([]);
+  const [allPersonas, setAllPersonas] = useState<Persona[]>([]);
+  const [activePersonaId, setActivePersonaId] = useState<string | null>(
+    initialPersonaId,
   );
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    setActiveChatId(initialPersonaId);
-  }, [initialPersonaId]);
-
-  // This effect now fetches BOTH the persona list AND the chat history for the active persona
-  useEffect(() => {
-    const fetchPersonasAndHistory = async () => {
+    const fetchInitialData = async () => {
       setIsLoading(true);
       try {
-        // Fetch the list of all personas for the sidebar
-        const personasResponse = await fetch("/api/personas");
-        if (!personasResponse.ok) throw new Error("Failed to fetch personas");
-        const personasData = await personasResponse.json();
-        setPersonas(personasData);
+        const [sessionsRes, personasRes] = await Promise.all([
+          fetch("/api/chathistory"),
+          fetch("/api/personas"),
+        ]);
+        if (!sessionsRes.ok || !personasRes.ok) {
+          throw new Error("Failed to fetch initial data");
+        }
+        const sessionsData = await sessionsRes.json();
+        const personasData = await personasRes.json();
 
-        // If a chat is selected, fetch its history
-        if (activeChatId) {
-          const historyResponse = await fetch(
-            `/api/chathistory/${activeChatId}`
-          );
+        setSessions(sessionsData);
+        setAllPersonas(personasData);
 
-          if (historyResponse.ok) {
-            const historyData = await historyResponse.json();
-            setMessages(historyData.messages);
-          } else if (historyResponse.status === 404) {
-            // No history found, set the initial greeting message
-            const activePersona = personasData.find(
-              (p: Persona) => p._id === activeChatId
-            );
-            if (activePersona) {
-              setMessages([
-                {
-                  role: "model",
-                  parts: [
-                    {
-                      text: `Hello! I am ${activePersona.name}. What would you like to talk about today?`,
-                    },
-                  ],
-                },
-              ]);
-            }
-          } else {
-            throw new Error("Failed to fetch chat history");
-          }
-        } else {
-          setMessages([]); // If no chat is active, clear messages
+        if (initialPersonaId) {
+          setActivePersonaId(initialPersonaId);
         }
       } catch (error) {
         console.error(error);
-        // Handle error state if necessary
+        toast.error("Failed to load data.");
       } finally {
         setIsLoading(false);
       }
     };
+    fetchInitialData();
+  }, [initialPersonaId]);
 
-    fetchPersonasAndHistory();
-  }, [activeChatId]); // This hook now re-runs whenever the active chat changes
+  const sidebarItems = useMemo(() => {
+    const sessionPersonaIds = new Set(sessions.map((s) => s.personaId._id));
+    const existingSessionItems = sessions.map((s) => ({
+      sessionId: s._id,
+      persona: s.personaId,
+    }));
+    const newPersonaItems = allPersonas
+      .filter((p) => !sessionPersonaIds.has(p._id))
+      .map((p) => ({ sessionId: null, persona: p }));
 
-  const activePersona = useMemo(() => {
-    return personas.find((p) => p._id === activeChatId) || null;
-  }, [activeChatId, personas]);
+    return [...existingSessionItems, ...newPersonaItems].filter((item) =>
+      item.persona.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [sessions, allPersonas, searchQuery]);
 
-  const handleSelectChat = (id: string) => {
-    setActiveChatId(id);
-    if (window.innerWidth < 768) {
-      setSidebarOpen(false);
+  const activeChatData = useMemo(() => {
+    if (!activePersonaId) return null;
+    const activeItem = sidebarItems.find(
+      (item) => item.persona._id === activePersonaId,
+    );
+    if (!activeItem) return null;
+
+    if (activeItem.sessionId) {
+      const session = sessions.find((s) => s._id === activeItem.sessionId);
+      return {
+        persona: activeItem.persona,
+        messages: session?.messages || [],
+        sessionId: activeItem.sessionId,
+      };
+    } else {
+      const greetingMessage: Message = {
+        role: "model",
+        parts: [
+          {
+            text: `Hello! I am ${activeItem.persona.name}. What would you like to talk about today?`,
+          },
+        ],
+      };
+      return {
+        persona: activeItem.persona,
+        messages: [greetingMessage],
+        sessionId: null,
+      };
+    }
+  }, [activePersonaId, sidebarItems, sessions]);
+
+  const handleSelectChat = (personaId: string) => {
+    setActivePersonaId(personaId);
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+
+  const handleHideChat = async (sessionId: string) => {
+    const previousSessions = sessions;
+    setSessions((prev) => prev.filter((s) => s._id !== sessionId));
+    if (
+      sessions.find((s) => s._id === sessionId)?.personaId._id ===
+      activePersonaId
+    ) {
+      setActivePersonaId(null);
+    }
+    try {
+      const response = await fetch(`/api/chathistory/${sessionId}`, {
+        method: "PUT",
+      });
+      if (!response.ok) throw new Error("Failed to hide chat.");
+      toast.success("Conversation Hidden");
+    } catch (error) {
+      toast.error("Could not hide conversation.");
+      setSessions(previousSessions);
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex h-[calc(100vh-69px)] flex-1 items-center justify-center">
+        <TypingLoader />
+      </div>
+    );
+  }
+
   return (
-    <div className="relative flex h-[calc(100vh-69px)] text-foreground overflow-hidden">
+    <div className="text-foreground relative flex h-[calc(100vh-69px)] overflow-hidden">
       <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
-        className="md:hidden absolute top-4 left-4 z-30 bg-card p-2 rounded-full"
+        className="bg-card absolute top-4 left-4 z-30 rounded-full p-2 md:hidden"
       >
         {isSidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
       </button>
-
       <ChatSidebar
-        personas={personas}
-        activeChatId={activeChatId}
+        items={sidebarItems}
+        activePersonaId={activePersonaId}
         onSelectChat={handleSelectChat}
+        onHideChat={handleHideChat}
         isSidebarOpen={isSidebarOpen}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
       />
-
-      <div className="flex-1 flex flex-col">
-        {/* We now pass messages and a setter function to ChatWindow */}
+      <div className="flex flex-1 flex-col">
         <ChatWindow
-          persona={activePersona}
-          messages={messages}
-          setMessages={setMessages}
+          persona={activeChatData?.persona || null}
+          initialMessages={activeChatData?.messages || []}
+          key={activeChatData?.persona?._id || "no-chat"}
         />
       </div>
     </div>

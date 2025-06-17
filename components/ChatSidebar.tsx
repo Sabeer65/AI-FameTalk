@@ -1,58 +1,98 @@
-import React from "react";
+"use client";
 
-interface Persona {
-  _id: string;
-  name: string;
-  imageUrl: string;
-  description: string;
-}
+import React from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+import { Button } from "./ui/button";
+import { FiX, FiSearch } from "react-icons/fi";
+import { Input } from "./ui/input";
 
 interface ChatSidebarProps {
-  personas: Persona[];
-  activeChatId: string | null;
-  onSelectChat: (id: string) => void;
+  items: any[];
+  activePersonaId: string | null;
+  onSelectChat: (personaId: string) => void;
+  onHideChat: (sessionId: string) => void;
   isSidebarOpen: boolean;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
 }
 
 export default function ChatSidebar({
-  personas,
-  activeChatId,
+  items,
+  activePersonaId,
   onSelectChat,
+  onHideChat,
   isSidebarOpen,
+  searchQuery,
+  setSearchQuery,
 }: ChatSidebarProps) {
   return (
     <aside
-      className={`absolute md:static top-0 left-0 h-full bg-gray-900 border-r border-gray-700 w-80 md:w-1/3 lg:w-1/4 transition-transform duration-300 ease-in-out z-20 ${
-        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-      } md:translate-x-0`}
+      className={cn(
+        `bg-background absolute top-0 left-0 z-20 flex h-full w-80 flex-col border-r transition-transform duration-300 ease-in-out md:static md:w-[300px] lg:w-[350px]`,
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full",
+        "md:translate-x-0",
+      )}
     >
-      <div className="p-4 border-b border-gray-700">
-        <h2 className="text-xl font-bold text-white">Conversations</h2>
+      <div className="border-b p-4">
+        <h2 className="text-2xl font-bold tracking-tight">Conversations</h2>
+        <div className="relative mt-4">
+          <FiSearch className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2" />
+          <Input
+            placeholder="Search chats..."
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
       </div>
-      <div className="overflow-y-auto h-[calc(100%-65px)]">
-        {personas.map((persona) => (
-          <div
-            key={persona._id}
-            onClick={() => onSelectChat(persona._id)}
-            className={`flex items-center p-4 cursor-pointer transition-colors ${
-              activeChatId === persona._id ? "bg-blue-600" : "hover:bg-gray-700"
-            }`}
-          >
-            <img
-              src={persona.imageUrl}
-              alt={persona.name}
-              className="w-12 h-12 rounded-full object-cover mr-4"
-            />
-            <div className="flex-grow overflow-hidden">
-              <h3 className="font-semibold text-white truncate">
-                {persona.name}
-              </h3>
-              <p className="text-sm text-gray-400 truncate">
-                {persona.description}
-              </p>
+      <div className="flex-1 overflow-y-auto">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <div
+              key={item.persona._id}
+              onClick={() => onSelectChat(item.persona._id)}
+              className={cn(
+                "group m-2 flex cursor-pointer items-center rounded-lg p-3 transition-colors",
+                activePersonaId === item.persona._id
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted",
+              )}
+            >
+              <Avatar className="mr-4 h-12 w-12">
+                <AvatarImage
+                  src={item.persona.imageUrl}
+                  alt={item.persona.name}
+                />
+                <AvatarFallback>{item.persona.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="flex-grow overflow-hidden">
+                <h3 className="truncate font-semibold">{item.persona.name}</h3>
+                <p className="text-muted-foreground truncate text-sm">
+                  {item.persona.description}
+                </p>
+              </div>
+              {item.sessionId && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ml-2 h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onHideChat(item.sessionId);
+                  }}
+                  aria-label="Hide conversation"
+                >
+                  <FiX className="h-4 w-4" />
+                </Button>
+              )}
             </div>
+          ))
+        ) : (
+          <div className="text-muted-foreground p-4 text-center text-sm">
+            {searchQuery ? "No chats found." : "No active conversations."}
           </div>
-        ))}
+        )}
       </div>
     </aside>
   );

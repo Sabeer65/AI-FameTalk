@@ -13,6 +13,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { FiSave } from "react-icons/fi";
 import { toast } from "sonner";
 
@@ -24,6 +31,7 @@ export default function CustomPersonaPage() {
     category: "",
     imageUrl: "",
     systemPrompt: "",
+    gender: "",
   });
   const [isCreating, setIsCreating] = useState(false);
 
@@ -33,13 +41,22 @@ export default function CustomPersonaPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleSelectChange = (value: string) => {
+    setFormData({ ...formData, gender: value });
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.gender) {
+      toast.error("Please select a gender for the persona.");
+      return;
+    }
     setIsCreating(true);
     try {
       const response = await fetch("/api/personas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // Send the form data and a flag to identify it as a custom bot
         body: JSON.stringify({ ...formData, isCustom: true }),
       });
 
@@ -50,7 +67,7 @@ export default function CustomPersonaPage() {
       toast.success("Custom Persona Created!", {
         description: `${data.name} has been added to your library.`,
       });
-      router.push("/personas");
+      router.push("/personas"); // Redirect on success
     } catch (err: any) {
       toast.error("Creation Failed", { description: err.message });
     } finally {
@@ -65,8 +82,7 @@ export default function CustomPersonaPage() {
           Create a Custom Persona
         </h1>
         <p className="text-muted-foreground">
-          Design a unique AI personality from scratch. Let your imagination run
-          wild.
+          Design a unique AI personality from scratch.
         </p>
       </div>
 
@@ -75,8 +91,7 @@ export default function CustomPersonaPage() {
           <CardHeader>
             <CardTitle>Persona Details</CardTitle>
             <CardDescription>
-              Define all the properties of your persona for a completely custom
-              bot.
+              Define all the properties for your custom bot.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6 md:grid-cols-2">
@@ -101,6 +116,34 @@ export default function CustomPersonaPage() {
                 required
               />
             </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:col-span-2">
+              <div className="grid gap-2">
+                <Label htmlFor="imageUrl">Image URL</Label>
+                <Input
+                  id="imageUrl"
+                  name="imageUrl"
+                  value={formData.imageUrl}
+                  onChange={handleInputChange}
+                  placeholder="https://example.com/image.jpg"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="gender">Voice Gender</Label>
+                <Select onValueChange={handleSelectChange} required>
+                  <SelectTrigger id="gender">
+                    <SelectValue placeholder="Select a voice gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="neutral">
+                      Neutral (uses male voice)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="grid gap-2 md:col-span-2">
               <Label htmlFor="description">Short Description</Label>
               <Input
@@ -109,17 +152,6 @@ export default function CustomPersonaPage() {
                 value={formData.description}
                 onChange={handleInputChange}
                 placeholder="A brief, one-sentence description."
-                required
-              />
-            </div>
-            <div className="grid gap-2 md:col-span-2">
-              <Label htmlFor="imageUrl">Image URL</Label>
-              <Input
-                id="imageUrl"
-                name="imageUrl"
-                value={formData.imageUrl}
-                onChange={handleInputChange}
-                placeholder="https://example.com/image.jpg"
                 required
               />
             </div>

@@ -16,15 +16,15 @@ const MessageSchema = new Schema(
       },
     ],
   },
-  { _id: false }
+  { _id: false },
 );
 
 const ChatSessionSchema = new Schema(
   {
     userId: {
       type: String,
+      ref: "User", // A soft reference to the User model's _id
       required: true,
-      default: "anonymous_user",
     },
     personaId: {
       type: Types.ObjectId,
@@ -32,8 +32,16 @@ const ChatSessionSchema = new Schema(
       required: true,
     },
     messages: [MessageSchema],
+    // --- NEW FIELD FOR HIDING/ARCHIVING CHATS ---
+    isActive: {
+      type: Boolean,
+      default: true, // By default, all new chat sessions are active and visible
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
+
+// Add a compound index for efficient lookups
+ChatSessionSchema.index({ userId: 1, personaId: 1 });
 
 export default models.ChatSession || model("ChatSession", ChatSessionSchema);
