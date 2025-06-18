@@ -29,7 +29,7 @@ export default function ChatSidebar({
   return (
     <aside
       className={cn(
-        `bg-background absolute top-0 left-0 z-20 flex h-full w-80 flex-col border-r transition-transform duration-300 ease-in-out md:static md:w-[300px] lg:w-[350px]`,
+        `bg-background/80 absolute top-0 left-0 z-20 flex h-full w-80 flex-col border-r backdrop-blur-sm transition-transform duration-300 ease-in-out md:static md:w-[300px] lg:w-[350px]`,
         isSidebarOpen ? "translate-x-0" : "-translate-x-full",
         "md:translate-x-0",
       )}
@@ -46,19 +46,22 @@ export default function ChatSidebar({
           />
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-2">
         {items.length > 0 ? (
           items.map((item) => (
             <div
               key={item.persona._id}
               onClick={() => onSelectChat(item.persona._id)}
               className={cn(
-                "group m-2 flex cursor-pointer items-center rounded-lg p-3 transition-colors",
+                "group relative flex cursor-pointer items-center rounded-lg p-3 transition-colors",
                 activePersonaId === item.persona._id
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-primary/20"
                   : "hover:bg-muted",
               )}
             >
+              {activePersonaId === item.persona._id && (
+                <div className="bg-primary absolute top-1/2 left-0 h-6 w-1 -translate-y-1/2 rounded-r-full"></div>
+              )}
               <Avatar className="mr-4 h-12 w-12">
                 <AvatarImage
                   src={item.persona.imageUrl}

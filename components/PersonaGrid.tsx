@@ -16,11 +16,12 @@ import { Input } from "./ui/input";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +40,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
-// Define a strict type for a Persona object
 interface Persona {
   _id: string;
   name: string;
@@ -50,7 +50,6 @@ interface Persona {
   creatorId: string;
 }
 
-// Define the shape of the session object we receive
 interface Session {
   user?: {
     id?: string;
@@ -73,19 +72,21 @@ export default function PersonaGrid({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [personaToDelete, setPersonaToDelete] = useState<Persona | null>(null);
 
-  // THE FIX: We explicitly tell TypeScript that useMemo will return a string array.
   const categories = useMemo<string[]>(() => {
-    if (!personas) return ["All"];
-    // By using a typed Persona, TypeScript knows `p.category` is a string.
-    const uniqueCategories = new Set(personas.map((p: Persona) => p.category));
+    if (!Array.isArray(personas)) return ["All"];
+    const uniqueCategories = new Set(
+      personas.map((p) => p?.category).filter(Boolean),
+    );
     return ["All", ...Array.from(uniqueCategories)];
   }, [personas]);
 
   const filteredPersonas = useMemo(() => {
-    if (!personas) return [];
+    if (!Array.isArray(personas)) return [];
     return personas
-      .filter((p) => activeCategory === "All" || p.category === activeCategory)
-      .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      .filter((p) => activeCategory === "All" || p?.category === activeCategory)
+      .filter((p) =>
+        (p?.name || "").toLowerCase().includes(searchQuery.toLowerCase()),
+      );
   }, [personas, activeCategory, searchQuery]);
 
   const handleDeleteClick = (persona: Persona) => {
@@ -143,7 +144,6 @@ export default function PersonaGrid({
       </div>
 
       <div className="mb-12 flex flex-wrap justify-center gap-2">
-        {/* Now this map works correctly because `categories` is a string[] */}
         {categories.map((category) => (
           <Button
             key={category}
@@ -165,59 +165,66 @@ export default function PersonaGrid({
           return (
             <Card
               key={persona._id}
-              className="group flex flex-col overflow-hidden transition-colors"
+              className="group bg-card/50 border-border/50 hover:border-primary/50 flex h-full flex-col overflow-hidden backdrop-blur-sm transition-all duration-300 hover:-translate-y-1"
             >
-              <CardHeader className="relative p-0">
-                <img
-                  src={persona.imageUrl}
-                  alt={persona.name}
-                  className="h-48 w-full object-cover"
-                />
-                {!persona.isDefault && canManage && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        className="absolute top-2 right-2 h-8 w-8"
-                      >
-                        <FiMoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem disabled>
-                        {" "}
-                        {/* Edit feature not yet built */}
-                        <FiEdit className="mr-2 h-4 w-4" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDeleteClick(persona)}
-                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                      >
-                        <FiTrash2 className="mr-2 h-4 w-4" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+              <CardHeader className="p-0">
+                <div className="relative">
+                  <Avatar className="h-64 w-full rounded-t-xl rounded-b-none">
+                    <AvatarImage
+                      src={persona.imageUrl}
+                      alt={persona.name}
+                      className="h-full w-full object-cover object-top"
+                    />
+                    <AvatarFallback className="rounded-none text-4xl">
+                      {(persona.name || "A").charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                  <div className="absolute bottom-0 left-0 p-4">
+                    <CardTitle className="text-2xl font-bold text-white">
+                      {persona.name}
+                    </CardTitle>
+                  </div>
+
+                  {!persona.isDefault && canManage && (
+                    <div className="absolute top-2 right-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="secondary" size="icon">
+                            <FiMoreVertical />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem disabled>
+                            <FiEdit className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteClick(persona)}
+                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                          >
+                            <FiTrash2 className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="flex-grow p-4">
-                <Badge variant="secondary" className="mb-2">
-                  {persona.category}
-                </Badge>
-                <CardTitle className="mb-1 truncate text-xl">
-                  {persona.name}
-                </CardTitle>
-                <p className="text-muted-foreground line-clamp-2 text-sm">
+                <CardDescription className="line-clamp-3">
                   {persona.description}
-                </p>
+                </CardDescription>
               </CardContent>
               <CardFooter className="p-4 pt-0">
                 <TransitionLink
                   href={`/chat?personaId=${persona._id}`}
                   className="w-full"
                 >
-                  <Button className="w-full">
-                    <FiMessageSquare className="mr-2 h-4 w-4" /> Chat Now
+                  <Button
+                    variant="secondary"
+                    className="group-hover:bg-primary/20 group-hover:text-primary w-full transition-colors"
+                  >
+                    <FiMessageSquare className="mr-2" /> Chat Now
                   </Button>
                 </TransitionLink>
               </CardFooter>
@@ -227,8 +234,13 @@ export default function PersonaGrid({
       </div>
 
       {filteredPersonas.length === 0 && (
-        <div className="col-span-full py-16 text-center">
-          <p className="text-muted-foreground text-lg">No personas found.</p>
+        <div className="col-span-full py-24 text-center">
+          <h3 className="text-2xl font-bold tracking-tight">
+            No personas found
+          </h3>
+          <p className="text-muted-foreground mt-2">
+            Try adjusting your search or selected category.
+          </p>
         </div>
       )}
 

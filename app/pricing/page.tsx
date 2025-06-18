@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import Script from "next/script";
-import { useSession } from "next-auth/react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,159 +10,141 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { FiCheck } from "react-icons/fi";
+import { cn } from "@/lib/utils";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import TransitionLink from "@/components/TransitionLink";
+import { FiCheckCircle, FiZap, FiStar } from "react-icons/fi";
 
-const tiers = [
+const pricingTiers = [
   {
     name: "Free",
     price: "$0",
-    description: "Get started and explore the core features.",
+    description: "For casual users to get a taste of AI conversations.",
     features: [
-      "Chat with default personas",
-      "3 AI-generated persona creations",
-      "Community support",
+      "5 daily message credits",
+      "Access to all standard personas",
+      "Basic conversation memory",
     ],
-    cta: "Get Started for Free",
-    variant: "outline",
-    isPremium: false,
+    cta: "Start for Free",
+    isFeatured: false,
   },
   {
-    name: "Premium",
-    price: "$10",
-    description: "Unlock the full potential of AI conversations.",
+    name: "Pro",
+    price: "$9.99",
+    description: "For enthusiasts who want the full, unrestricted experience.",
     features: [
-      "Unlimited persona creations",
-      "Create fully custom artificial personas",
-      "Access to premium AI models (coming soon)",
-      "Priority email support",
+      "Unlimited message credits",
+      "Create custom AI personas",
+      "Enhanced conversation memory",
+      "Priority access to new features",
     ],
-    cta: "Upgrade to Premium",
-    variant: "default",
-    isPremium: true,
+    cta: "Go Pro",
+    isFeatured: true,
   },
 ];
 
+const FeatureListItem = ({ children }: { children: React.ReactNode }) => (
+  <li className="flex items-center gap-3">
+    <FiCheckCircle className="text-primary h-5 w-5" />
+    <span className="text-muted-foreground">{children}</span>
+  </li>
+);
+
 export default function PricingPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleUpgradeClick = async () => {
-    setIsLoading(true);
-
-    if (!session) {
-      toast.error("You must be signed in to upgrade.");
-      setIsLoading(false);
+    if (status === "unauthenticated") {
+      router.push("/sign-in");
+      return;
+    }
+    if (session?.user.isPro) {
+      toast.info("You are already a Pro user.");
       return;
     }
 
+    setIsLoading(true);
     try {
-      // --- THE "SNEAKY" PART ---
-      // We call our manual upgrade endpoint in the background.
-      // We don't even need to wait for it to finish.
-      fetch("/api/billing/upgrade", { method: "POST" });
-      // ------------------------
-
-      // Call the regular subscription creation to show the Razorpay modal
-      const subRes = await fetch("/api/billing/create-subscription", {
+      const response = await fetch("/api/billing/create-subscription", {
         method: "POST",
       });
-      const subData = await subRes.json();
-      if (!subRes.ok) throw new Error(subData.error);
+      const data = await response.json();
 
-      const options = {
-        key: subData.razorpayKeyId,
-        subscription_id: subData.subscriptionId,
-        name: "AI FameTalk Premium",
-        description: "Monthly Subscription",
-        handler: function (response: any) {
-          // This handler runs after the user "pays" on the modal
-          toast.success("Upgrade Successful!", {
-            description: "Your account is now Premium. Refreshing page...",
-          });
-          // Reload the page to reflect the new premium status
-          setTimeout(() => window.location.reload(), 2000);
-        },
-        prefill: {
-          name: session.user?.name || "",
-          email: session.user?.email || "",
-        },
-        theme: {
-          color: "#4a0087",
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch (error: any) {
-      toast.error("Subscription Failed", { description: error.message });
+      if (response.ok) {
+        window.location.href = data.url;
+      } else {
+        toast.error(data.error || "Something went wrong.");
+      }
+    } catch (error) {
+      toast.error("Failed to create subscription.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <>
-      <Script
-        id="razorpay-checkout-js"
-        src="https://checkout.razorpay.com/v1/checkout.js"
-      />
-      <div className="flex flex-col items-center py-12 md:py-20">
-        <div className="mx-auto max-w-2xl text-center">
-          <h1 className="mb-4 text-4xl font-extrabold tracking-tighter md:text-5xl">
-            Find the Perfect Plan
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Start for free and scale up as you create more.
-          </p>
-        </div>
-
-        <div className="mt-12 grid w-full max-w-4xl gap-8 md:grid-cols-2">
-          {tiers.map((tier) => (
-            <Card
-              key={tier.name}
-              className={tier.variant === "default" ? "border-primary" : ""}
-            >
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">{tier.name}</CardTitle>
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-extrabold">{tier.price}</span>
-                  <span className="text-muted-foreground">/month</span>
-                </div>
-                <CardDescription>{tier.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-3">
-                  {tier.features.map((feature) => (
-                    <li key={feature} className="flex items-center">
-                      <FiCheck className="text-primary mr-3 h-5 w-5" />
-                      <span className="text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-              <CardFooter>
-                {tier.isPremium ? (
-                  <Button
-                    className="w-full"
-                    onClick={handleUpgradeClick}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Processing..." : tier.cta}
-                  </Button>
-                ) : (
-                  <TransitionLink href="/sign-in" className="w-full">
-                    <Button className="w-full" variant="outline">
-                      {tier.cta}
-                    </Button>
-                  </TransitionLink>
-                )}
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+    <div className="container mx-auto max-w-5xl px-4 py-16 sm:py-24">
+      <div className="mb-16 text-center">
+        <h1 className="text-5xl font-extrabold tracking-tighter md:text-6xl">
+          Unlock Your Potential
+        </h1>
+        <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-lg md:text-xl">
+          Choose the plan that's right for you and start having limitless
+          conversations today.
+        </p>
       </div>
-    </>
+
+      <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-2">
+        {pricingTiers.map((tier) => (
+          <Card
+            key={tier.name}
+            className={cn(
+              "bg-card/50 border-border/50 flex h-full flex-col backdrop-blur-sm transition-all duration-300",
+              tier.isFeatured
+                ? "border-primary/50 ring-primary/50 shadow-primary/10 shadow-2xl ring-2"
+                : "",
+            )}
+          >
+            <CardHeader className="p-8">
+              {tier.isFeatured && (
+                <div className="bg-primary text-primary-foreground mb-4 flex w-fit items-center gap-2 rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase">
+                  <FiStar />
+                  Most Popular
+                </div>
+              )}
+              <CardTitle className="text-4xl font-bold">{tier.name}</CardTitle>
+              <CardDescription className="text-muted-foreground pt-2 text-lg">
+                {tier.description}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-grow p-8">
+              <div className="mb-8">
+                <span className="text-5xl font-extrabold">{tier.price}</span>
+                <span className="text-muted-foreground">/month</span>
+              </div>
+              <ul className="space-y-4">
+                {tier.features.map((feature, index) => (
+                  <FeatureListItem key={index}>{feature}</FeatureListItem>
+                ))}
+              </ul>
+            </CardContent>
+            <CardFooter className="p-8">
+              <Button
+                size="lg"
+                className="w-full py-6 text-lg"
+                variant={tier.isFeatured ? "default" : "outline"}
+                onClick={handleUpgradeClick}
+                disabled={isLoading || (session?.user.isPro && tier.isFeatured)}
+              >
+                {isLoading && tier.isFeatured ? "Processing..." : tier.cta}
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }

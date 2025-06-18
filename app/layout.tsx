@@ -23,16 +23,16 @@ export default function RootLayout({
         <head>
           <title>AI FameTalk</title>
           <meta name="description" content="Chat with your favorite personas" />
-          {/* The script is now managed by the VoiceProvider */}
         </head>
         <body className={`${inter.className} bg-background text-foreground`}>
           <VoiceProvider>
-            {" "}
-            {/* Wrap the app in the VoiceProvider */}
             <TransitionProvider>
-              <header className="bg-background sticky top-0 z-20 border-b">
+              <header className="bg-background/80 backdrop-blur-sm sticky top-0 z-40 border-b">
                 <nav className="container mx-auto flex items-center justify-between p-4">
-                  <TransitionLink href="/" className="text-xl font-bold">
+                  <TransitionLink
+                    href="/"
+                    className="text-xl font-bold tracking-tighter"
+                  >
                     AI FameTalk
                   </TransitionLink>
                   <div className="hidden items-center space-x-2 md:flex">
@@ -52,7 +52,7 @@ export default function RootLayout({
                   <LoginButton />
                 </nav>
               </header>
-              <main className="container mx-auto p-4 md:p-6">{children}</main>
+              <main>{children}</main>
             </TransitionProvider>
           </VoiceProvider>
           <Toaster theme="dark" position="bottom-right" />
