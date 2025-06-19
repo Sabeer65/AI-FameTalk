@@ -5,60 +5,50 @@ import dbConnect from "@/lib/dbConnect";
 import ChatSession from "@/models/ChatSession";
 import { NextRequest } from "next/server";
 
-// This function handles PUT requests to /api/chathistory/[sessionId]
-// We use PUT because we are updating an existing resource.
+// This PUT method now exclusively handles HIDING (archiving) a chat
 export async function PUT(
-  request: NextRequest,
+  req: NextRequest,
   { params }: { params: { sessionId: string } },
 ) {
-  // 1. Authenticate the user
   const session = await getServerSession(authOptions);
-  if (!session || !session.user?.id) {
+  if (!session || !session.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const userId = session.user.id;
 
-  const { sessionId } = params;
-  if (!sessionId) {
+  const chatSession = await ChatSession.findOne({
+    _id: params.sessionId,
+    userId: session.user.id,
+  });
+  if (!chatSession)
     return NextResponse.json(
-      { error: "Session ID is required" },
-      { status: 400 },
+      { error: "Chat session not found or you do not have permission." },
+      { status: 404 },
     );
-  }
 
-  try {
-    await dbConnect();
+  chatSession.isActive = false;
+  await chatSession.save();
+  return NextResponse.json({ message: "Chat hidden successfully." });
+}
 
-    // 2. Find the chat session by its ID
-    const chatSession = await ChatSession.findById(sessionId);
-    if (!chatSession) {
-      return NextResponse.json(
-        { error: "Chat session not found" },
-        { status: 404 },
-      );
-    }
+// This new PATCH method handles UN-HIDING (un-archiving) a chat
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { sessionId: string } },
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user?.id)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // 3. Authorize the action: user must own this chat session
-    if (chatSession.userId.toString() !== userId) {
-      return NextResponse.json(
-        { error: "Forbidden: You do not own this chat session." },
-        { status: 403 },
-      );
-    }
-
-    // 4. Update the session to be inactive
-    chatSession.isActive = false;
-    await chatSession.save();
-
+  const chatSession = await ChatSession.findOne({
+    _id: params.sessionId,
+    userId: session.user.id,
+  });
+  if (!chatSession)
     return NextResponse.json(
-      { message: "Chat session hidden successfully." },
-      { status: 200 },
+      { error: "Chat session not found or you do not have permission." },
+      { status: 404 },
     );
-  } catch (error) {
-    console.error("Hide Chat API Error:", error);
-    return NextResponse.json(
-      { error: "An internal server error occurred" },
-      { status: 500 },
-    );
-  }
+
+  chatSession.isActive = true;
+  await chatSession.save();
+  return NextResponse.json({ message: "Chat restored successfully." });
 }

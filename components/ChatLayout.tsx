@@ -1,37 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import ChatSidebar from "@/components/ChatSidebar";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import ChatSidebar, { SidebarItem } from "@/components/ChatSidebar";
 import ChatWindow from "@/components/ChatWindow";
 import { FiMenu, FiX } from "react-icons/fi";
 import { toast } from "sonner";
 import TypingLoader from "./TypingLoader";
+import { IPersona, IMessage } from "@/types";
 
-interface Persona {
-  _id: string;
-  name: string;
-  imageUrl: string;
-  description: string;
-  category: string;
-  systemPrompt: string;
-  gender: "male" | "female" | "neutral";
-}
-interface Message {
-  role: "user" | "model";
-  parts: { text: string }[];
-}
-interface PopulatedChatSession {
-  _id: string;
-  personaId: Persona;
-  messages: Message[];
-}
 interface ChatLayoutProps {
   initialPersonaId: string | null;
 }
 
 export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
-  const [sessions, setSessions] = useState<PopulatedChatSession[]>([]);
-  const [allPersonas, setAllPersonas] = useState<Persona[]>([]);
+  const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [activePersonaId, setActivePersonaId] = useState<string | null>(
     initialPersonaId,
   );
@@ -39,96 +21,81 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      setIsLoading(true);
-      try {
-        const [sessionsRes, personasRes] = await Promise.all([
-          fetch("/api/chathistory"),
-          fetch("/api/personas"),
-        ]);
-        if (!sessionsRes.ok || !personasRes.ok) {
-          throw new Error("Failed to fetch initial data");
-        }
-        const sessionsData = await sessionsRes.json();
-        const personasData = await personasRes.json();
-
-        setSessions(sessionsData);
-        setAllPersonas(personasData);
-
-        if (initialPersonaId) {
-          setActivePersonaId(initialPersonaId);
-        }
-      } catch (error) {
-        console.error(error);
-        toast.error("Failed to load data.");
-      } finally {
-        setIsLoading(false);
+  const fetchAllData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/chathistory");
+      if (!response.ok) throw new Error("Failed to fetch initial data");
+      const data = await response.json();
+      setSidebarItems(data);
+      if (initialPersonaId && !activePersonaId) {
+        setActivePersonaId(initialPersonaId);
       }
-    };
-    fetchInitialData();
-  }, [initialPersonaId]);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to load conversation data.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [initialPersonaId, activePersonaId]);
 
-  const sidebarItems = useMemo(() => {
-    const sessionPersonaIds = new Set(sessions.map((s) => s.personaId._id));
-    const existingSessionItems = sessions.map((s) => ({
-      sessionId: s._id,
-      persona: s.personaId,
-    }));
-    const newPersonaItems = allPersonas
-      .filter((p) => !sessionPersonaIds.has(p._id))
-      .map((p) => ({ sessionId: null, persona: p }));
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
 
-    return [...existingSessionItems, ...newPersonaItems].filter((item) =>
+  const filteredSidebarItems = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return sidebarItems.filter(
+        (item) => item.isActive || item.persona._id === activePersonaId,
+      );
+    }
+    return sidebarItems.filter((item) =>
       item.persona.name.toLowerCase().includes(searchQuery.toLowerCase()),
     );
-  }, [sessions, allPersonas, searchQuery]);
+  }, [sidebarItems, searchQuery, activePersonaId]);
 
   const activeChatData = useMemo(() => {
     if (!activePersonaId) return null;
-    const activeItem = sidebarItems.find(
-      (item) => item.persona._id === activePersonaId,
+    return (
+      sidebarItems.find((item) => item.persona._id === activePersonaId) || null
     );
-    if (!activeItem) return null;
+  }, [activePersonaId, sidebarItems]);
 
-    if (activeItem.sessionId) {
-      const session = sessions.find((s) => s._id === activeItem.sessionId);
-      return {
-        persona: activeItem.persona,
-        messages: session?.messages || [],
-        sessionId: activeItem.sessionId,
-      };
-    } else {
-      const greetingMessage: Message = {
-        role: "model",
-        parts: [
-          {
-            text: `Hello! I am ${activeItem.persona.name}. What would you like to talk about today?`,
-          },
-        ],
-      };
-      return {
-        persona: activeItem.persona,
-        messages: [greetingMessage],
-        sessionId: null,
-      };
+  const handleSelectChat = async (item: SidebarItem) => {
+    if (!item.isActive && item.sessionId) {
+      try {
+        const response = await fetch(`/api/chathistory/${item.sessionId}`, {
+          method: "PATCH",
+        });
+        if (!response.ok) throw new Error("Failed to restore chat.");
+
+        setSidebarItems((prevItems) =>
+          prevItems.map((i) =>
+            i.sessionId === item.sessionId ? { ...i, isActive: true } : i,
+          ),
+        );
+        toast.success("Conversation restored");
+      } catch (error) {
+        toast.error("Could not restore conversation.");
+        return;
+      }
     }
-  }, [activePersonaId, sidebarItems, sessions]);
-
-  const handleSelectChat = (personaId: string) => {
-    setActivePersonaId(personaId);
+    setActivePersonaId(item.persona._id);
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
   const handleHideChat = async (sessionId: string) => {
-    const previousSessions = sessions;
-    setSessions((prev) => prev.filter((s) => s._id !== sessionId));
-    if (
-      sessions.find((s) => s._id === sessionId)?.personaId._id ===
-      activePersonaId
-    ) {
+    const previousItems = sidebarItems;
+    setSidebarItems((prev) =>
+      prev.map((item) =>
+        item.sessionId === sessionId ? { ...item, isActive: false } : item,
+      ),
+    );
+
+    if (activeChatData?.sessionId === sessionId) {
       setActivePersonaId(null);
     }
+
     try {
       const response = await fetch(`/api/chathistory/${sessionId}`, {
         method: "PUT",
@@ -137,8 +104,14 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
       toast.success("Conversation Hidden");
     } catch (error) {
       toast.error("Could not hide conversation.");
-      setSessions(previousSessions);
+      setSidebarItems(previousItems); // Revert on failure
     }
+  };
+
+  const handleNewMessage = async () => {
+    // After a new chat session is created, we need to refresh the sidebar
+    // to get the new sessionId and make the "hide" button appear.
+    await fetchAllData();
   };
 
   if (isLoading) {
@@ -150,7 +123,7 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
   }
 
   return (
-    <div className="text-foreground relative flex h-[calc(100vh-69px)] overflow-hidden font-sans">
+    <div className="text-foreground relative flex h-[calc(100vh-69px)] overflow-hidden">
       <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
         className="bg-card absolute top-4 left-4 z-30 rounded-full p-2 md:hidden"
@@ -158,7 +131,7 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
         {isSidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
       </button>
       <ChatSidebar
-        items={sidebarItems}
+        items={filteredSidebarItems}
         activePersonaId={activePersonaId}
         onSelectChat={handleSelectChat}
         onHideChat={handleHideChat}
@@ -170,6 +143,7 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
         <ChatWindow
           persona={activeChatData?.persona || null}
           initialMessages={activeChatData?.messages || []}
+          onNewChatStarted={handleNewMessage}
           key={activeChatData?.persona?._id || "no-chat"}
         />
       </div>

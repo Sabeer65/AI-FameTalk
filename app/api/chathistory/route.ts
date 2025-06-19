@@ -3,36 +3,80 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import dbConnect from "@/lib/dbConnect";
 import ChatSession from "@/models/ChatSession";
-import Persona from "@/models/Persona"; // This import is necessary for populate
+import Persona from "@/models/Persona";
+import { Types } from "mongoose";
+import { IPersona, IMessage } from "@/types";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session || !session.user?.id) {
-    // If user is not logged in, return an empty array instead of an error
-    return NextResponse.json([], { status: 200 });
-  }
+  const userId = session?.user?.id;
 
   try {
     await dbConnect();
 
-    // Find all ACTIVE chat sessions for the logged-in user
-    // and populate them with the details of the persona they are linked to.
-    const sessions = await ChatSession.find({
-      userId: session.user.id,
-      isActive: true,
-    })
-      .populate({
-        // This ensures we get the full persona object
-        path: "personaId",
-        model: Persona,
-      })
-      .sort({ updatedAt: -1 });
+    const personaQuery = userId
+      ? {
+          $or: [{ isDefault: true }, { creatorId: new Types.ObjectId(userId) }],
+        }
+      : { isDefault: true };
 
-    return NextResponse.json(sessions, { status: 200 });
+    // Fetch personas from DB (lean for plain JS objects)
+    const personasFromDb = await Persona.find(personaQuery)
+      .sort({ name: "asc" })
+      .lean();
+
+    let sessionsFromDb: any[] = [];
+    if (userId) {
+      sessionsFromDb = await ChatSession.find({
+        userId: new Types.ObjectId(userId),
+        isActive: true,
+      }).lean();
+    }
+
+    const sessionsMap = new Map(
+      sessionsFromDb.map((s) => [s.personaId.toString(), s]),
+    );
+
+    const allowedGenders = ["male", "female", "neutral"] as const;
+
+    const responseData = personasFromDb.map((p_raw) => {
+      const session = sessionsMap.get((p_raw._id as Types.ObjectId).toString());
+
+      const persona: IPersona = {
+        _id: (p_raw._id as Types.ObjectId).toString(),
+        name: p_raw.name as string,
+        description: p_raw.description as string,
+        systemPrompt: p_raw.systemPrompt as string,
+        category: p_raw.category as string,
+        imageUrl: p_raw.imageUrl as string,
+        creatorId: (p_raw.creatorId as Types.ObjectId).toString(),
+        isDefault: p_raw.isDefault as boolean,
+        gender: allowedGenders.includes(p_raw.gender as any)
+          ? (p_raw.gender as "male" | "female" | "neutral")
+          : "neutral",
+      };
+
+      return {
+        sessionId: session?._id.toString() || null,
+        messages: (session?.messages || []) as IMessage[],
+        persona: persona,
+        isActive: !!session,
+      };
+    });
+
+    responseData.sort((a, b) => {
+      if (a.sessionId && !b.sessionId) return -1;
+      if (!a.sessionId && b.sessionId) return 1;
+      if (a.persona.name < b.persona.name) return -1;
+      if (a.persona.name > b.persona.name) return 1;
+      return 0;
+    });
+
+    return NextResponse.json(responseData, { status: 200 });
   } catch (error) {
-    console.error("API GET Active Chats Error:", error);
+    console.error("API GET chathistory Error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch active chats" },
+      { error: "Failed to fetch chat data" },
       { status: 500 },
     );
   }

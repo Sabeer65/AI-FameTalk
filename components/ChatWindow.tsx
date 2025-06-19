@@ -29,6 +29,7 @@ import { IPersona, IMessage } from "@/types";
 interface ChatWindowProps {
   persona: IPersona | null;
   initialMessages: IMessage[];
+  onNewChatStarted: () => void;
 }
 
 const GUEST_MESSAGE_LIMIT = 5;
@@ -36,23 +37,26 @@ const GUEST_MESSAGE_LIMIT = 5;
 export default function ChatWindow({
   persona,
   initialMessages,
+  onNewChatStarted,
 }: ChatWindowProps) {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const [messages, setMessages] = useState<IMessage[]>(initialMessages);
   const [userInput, setUserInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { speak } = useTextToSpeech();
+  const { speak, isAvailable: isTtsAvailable } = useTextToSpeech();
   const handleFinalTranscript = (transcript: string) => {
-    setUserInput((prev) => (prev + " " + transcript).trim());
+    setUserInput((prev) => (prev + transcript).trim());
   };
+  // THE FIX: Correctly destructuring the return value from the hook
   const { isListening, interimTranscript, startListening, stopListening } =
     useSpeechToText(handleFinalTranscript);
 
   useEffect(() => {
     setMessages(initialMessages);
+    setUserInput(""); // Clear input when chat changes
   }, [initialMessages]);
 
   useEffect(() => {
@@ -62,10 +66,10 @@ export default function ChatWindow({
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-  useEffect(scrollToBottom, [messages, isLoading]);
+  useEffect(scrollToBottom, [messages, isSending]);
 
   const handleFormSubmit = async () => {
-    if (!userInput.trim() || !persona || isLoading) return;
+    if (!userInput.trim() || !persona || isSending) return;
     if (isListening) stopListening();
 
     if (status === "unauthenticated") {
@@ -84,20 +88,12 @@ export default function ChatWindow({
       role: "user",
       parts: [{ text: userInput }],
     };
+    const isNewChat = messages.length <= 1 && messages[0]?.role === "model";
 
-    // --- THIS IS THE FIX ---
-    // Create an up-to-date message list for the API call.
-    // If it's the first message (history only contains the greeting), send an empty history.
-    // Otherwise, send the real message history.
-    const historyForAPI =
-      messages.length === 1 && messages[0].role === "model" ? [] : messages;
-
-    // Optimistically update the UI with the user's new message
     setMessages((prev) => [...prev, newUserMessage]);
-
     const textToSubmit = userInput;
     setUserInput("");
-    setIsLoading(true);
+    setIsSending(true);
 
     try {
       const response = await fetch("/api/chat", {
@@ -105,7 +101,7 @@ export default function ChatWindow({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userMessage: textToSubmit,
-          chatHistory: historyForAPI, // Use the correctly prepared history
+          chatHistory: isNewChat ? [] : messages,
           systemPrompt: persona.systemPrompt,
           personaId: persona._id,
         }),
@@ -115,15 +111,17 @@ export default function ChatWindow({
         const data = await response.json();
         throw new Error(data.error || "API request failed.");
       }
-
       const data = await response.json();
       const botMessage: IMessage = {
         role: "model",
         parts: [{ text: data.botMessage }],
       };
-
-      // Update the UI with the final bot message
       setMessages((prev) => [...prev, botMessage]);
+      speak(botMessage.parts[0].text, persona.gender);
+
+      if (isNewChat && status === "authenticated") {
+        onNewChatStarted();
+      }
     } catch (error: any) {
       const errorMessage: IMessage = {
         role: "model",
@@ -131,7 +129,7 @@ export default function ChatWindow({
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
-      setIsLoading(false);
+      setIsSending(false);
     }
   };
 
@@ -148,8 +146,16 @@ export default function ChatWindow({
       handleFormSubmit();
     }
   };
+
   const handleSpeakClick = (text: string) => {
-    if (persona) speak(text, persona.gender);
+    if (!persona) return; // THE FIX: Final null check for persona
+    if (!isTtsAvailable) {
+      toast.error("Voice Service Not Available", {
+        description: "Please check browser settings or API key.",
+      });
+      return;
+    }
+    speak(text, persona.gender);
   };
 
   if (!persona) {
@@ -166,7 +172,97 @@ export default function ChatWindow({
 
   return (
     <div className="bg-background/30 text-foreground flex flex-1 flex-col overflow-hidden">
-      {/* ... The rest of the JSX is unchanged ... */}
+      <header className="flex items-center justify-between border-b p-4">
+        <div className="flex items-center gap-4">
+          <Avatar className="h-12 w-12">
+            <AvatarImage src={persona.imageUrl} />
+            <AvatarFallback>{persona.name.charAt(0)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <h2 className="text-xl font-bold">{persona.name}</h2>
+            <p className="text-muted-foreground text-sm">{persona.category}</p>
+          </div>
+        </div>
+      </header>
+      <main className="flex-1 space-y-4 overflow-y-auto p-6">
+        {messages.map((msg, index) => (
+          <div
+            key={index}
+            className={`group relative flex items-start gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+          >
+            {msg.role === "model" && (
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={persona.imageUrl} />
+                <AvatarFallback>{persona.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+            )}
+            <div
+              className={`max-w-xl rounded-lg p-3 text-base ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted rounded-bl-none"}`}
+            >
+              <p className="whitespace-pre-wrap">{msg.parts[0].text}</p>
+            </div>
+            {msg.role === "model" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
+                onClick={() => handleSpeakClick(msg.parts[0].text)}
+              >
+                <FiVolume2 className="h-4 w-4" />
+              </Button>
+            )}
+            {/* ... user avatar ... */}
+          </div>
+        ))}
+        {isSending && (
+          <div className="flex justify-start">
+            <TypingLoader />
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </main>
+      <footer className="bg-background/80 border-t p-4 backdrop-blur-sm">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleFormSubmit();
+          }}
+          className="flex items-start gap-2"
+        >
+          <Button
+            type="button"
+            variant={isListening ? "destructive" : "ghost"}
+            size="icon"
+            onClick={handleMicClick}
+          >
+            {isListening ? (
+              <FiRadio className="h-5 w-5 animate-pulse" />
+            ) : (
+              <FiMic className="h-5 w-5" />
+            )}
+          </Button>
+          <TextareaAutosize
+            value={userInput || interimTranscript}
+            onChange={(e) => setUserInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isListening ? "Listening..." : `Message ${persona.name}...`
+            }
+            className="bg-muted focus-visible:ring-ring flex-1 resize-none rounded-lg p-3 focus-visible:ring-2"
+            disabled={isSending}
+            autoComplete="off"
+            rows={1}
+            maxRows={5}
+          />
+          <Button
+            type="submit"
+            size="icon"
+            disabled={isSending || !userInput.trim()}
+          >
+            <FiSend className="h-4 w-4" />
+          </Button>
+        </form>
+      </footer>
     </div>
   );
 }

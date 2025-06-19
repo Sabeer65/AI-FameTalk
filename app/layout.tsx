@@ -1,7 +1,5 @@
 "use client";
 
-// 1. Import both fonts
-import { Inter, Space_Mono } from "next/font/google";
 import AuthProvider from "@/components/AuthProvider";
 import TransitionProvider from "@/components/TransitionProvider";
 import TransitionLink from "@/components/TransitionLink";
@@ -11,18 +9,6 @@ import LoginButton from "@/components/LoginButton";
 import { Toaster } from "@/components/ui/sonner";
 import VoiceProvider from "@/components/VoiceProvider";
 
-// 2. Instantiate both fonts and assign them CSS variables
-const spaceMono = Space_Mono({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-space-mono",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,14 +16,21 @@ export default function RootLayout({
 }>) {
   return (
     <AuthProvider>
-      {/* 3. Apply BOTH font variables to the <html> tag */}
-      <html
-        lang="en"
-        className={`${spaceMono.variable} ${inter.variable} dark`}
-      >
+      <html lang="en" className="dark">
         <head>
           <title>AI FameTalk</title>
           <meta name="description" content="Chat with your favorite personas" />
+          {/* THE FIX: Replace the old font link with these new ones */}
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link
+            rel="preconnect"
+            href="https://fonts.gstatic.com"
+            crossOrigin="anonymous"
+          />
+          <link
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Public+Sans:wght@400;500;700&display=swap"
+            rel="stylesheet"
+          />
         </head>
         <body>
           <VoiceProvider>
@@ -67,7 +60,7 @@ export default function RootLayout({
                   <LoginButton />
                 </nav>
               </header>
-              <main>{children}</main>
+              <main className="container mx-auto p-4 md:p-6">{children}</main>
             </TransitionProvider>
           </VoiceProvider>
           <Toaster theme="dark" position="bottom-right" />

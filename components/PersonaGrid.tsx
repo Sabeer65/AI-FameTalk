@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import TransitionLink from "./TransitionLink";
 import {
   FiSearch,
@@ -13,13 +14,7 @@ import {
 } from "react-icons/fi";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -38,32 +33,30 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { useSession } from "next-auth/react";
+import { IPersona } from "@/types";
 
-// This is a simple type definition for the data this component receives.
-interface Persona {
-  _id: string;
-  name: string;
-  description: string;
-  category: string;
-  imageUrl: string;
-  isDefault: boolean;
-  creatorId: string;
+// Define the shape of the session object we get from the parent
+interface Session {
+  user?: {
+    id?: string | null;
+    role?: string | null;
+  };
 }
 
 interface PersonaGridProps {
-  initialPersonas: Persona[];
+  initialPersonas: IPersona[];
+  session: Session | null;
 }
 
-export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
-  const { data: session } = useSession();
+export default function PersonaGrid({
+  initialPersonas,
+  session,
+}: PersonaGridProps) {
   const [personas, setPersonas] = useState(initialPersonas || []);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [personaToDelete, setPersonaToDelete] = useState<Persona | null>(null);
-
-  // --- All the functions below are existing functionality and are not being changed ---
+  const [personaToDelete, setPersonaToDelete] = useState<IPersona | null>(null);
 
   const categories = useMemo<string[]>(() => {
     if (!personas) return ["All"];
@@ -78,7 +71,7 @@ export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
       .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [personas, activeCategory, searchQuery]);
 
-  const handleDeleteClick = (persona: Persona) => {
+  const handleDeleteClick = (persona: IPersona) => {
     setPersonaToDelete(persona);
     setShowDeleteDialog(true);
   };
@@ -104,8 +97,6 @@ export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
       setPersonaToDelete(null);
     }
   };
-
-  // --- The only changes are in the visual presentation (JSX) below ---
 
   return (
     <>
@@ -154,7 +145,6 @@ export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
             (session.user.id === persona.creatorId ||
               session.user.role === "admin");
           return (
-            // --- START OF NEW CARD DESIGN ---
             <Card
               key={persona._id}
               className="group border-border/50 bg-card/50 hover:shadow-primary/10 relative flex h-80 flex-col justify-end overflow-hidden rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
@@ -164,10 +154,9 @@ export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
                 alt={persona.name}
                 className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-in-out group-hover:scale-110"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
 
-              {/* Management Dropdown */}
-              {!persona.isDefault && canManage && (
+              {canManage && (
                 <div className="absolute top-2 right-2 z-10">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -197,7 +186,6 @@ export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
                 </div>
               )}
 
-              {/* Card Content on top of the gradient */}
               <div className="relative z-10 flex flex-col p-4">
                 <Badge variant="secondary" className="mb-2 w-fit">
                   {persona.category}
@@ -205,7 +193,6 @@ export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
                 <CardTitle className="text-xl font-bold text-white">
                   {persona.name}
                 </CardTitle>
-                {/* Here we use a standard <p> tag instead of CardDescription */}
                 <p className="mt-1 line-clamp-2 text-sm text-white/80">
                   {persona.description}
                 </p>
@@ -222,7 +209,6 @@ export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
                 </TransitionLink>
               </div>
             </Card>
-            // --- END OF NEW CARD DESIGN ---
           );
         })}
       </div>
@@ -242,12 +228,11 @@ export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            {/* Here we also use a standard <p> tag */}
-            <p className="text-muted-foreground text-sm">
+            <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the
               persona "{personaToDelete?.name}" and all of its associated chat
               histories.
-            </p>
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
