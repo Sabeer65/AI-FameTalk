@@ -150,7 +150,7 @@ export default function ChatLayout({ initialPersonaId }: ChatLayoutProps) {
   }
 
   return (
-    <div className="text-foreground relative flex h-[calc(100vh-69px)] overflow-hidden">
+    <div className="text-foreground relative flex h-[calc(100vh-69px)] overflow-hidden font-sans">
       <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
         className="bg-card absolute top-4 left-4 z-30 rounded-full p-2 md:hidden"

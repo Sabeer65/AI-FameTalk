@@ -23,6 +23,7 @@
   --border: 215 27.9% 16.9%;
   --input: 215 27.9% 16.9%;
   --ring: 262.1 83.3% 57.8%;
+  --font-display: "sans-serif";
 }
 
 @layer base {
@@ -31,10 +32,12 @@
   }
 
   body {
+    font-family: "Space Mono", monospace;
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     min-height: 100vh;
-    background-image: radial-gradient(
+    background-image:
+      radial-gradient(
         circle at 25% 50%,
         hsl(var(--primary) / 0.1),
         rgba(255, 255, 255, 0) 35%
@@ -45,4 +48,23 @@
         rgba(255, 255, 255, 0) 35%
       );
   }
+}
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background)); /* The dark background of the track */
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: hsl(
+    var(--primary) / 0.6
+  ); /* Your theme's purple color, slightly transparent */
+  border-radius: 10px;
+  border: 3px solid hsl(var(--background)); /* Creates a nice padding effect */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--primary)); /* Makes the thumb solid on hover */
 }

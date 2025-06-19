@@ -1,100 +1,55 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "../../auth/[...nextauth]/route";
 import dbConnect from "@/lib/dbConnect";
-import User, { IUser } from "@/models/User"; // Import IUser interface
+import User from "@/models/User";
+import { NextRequest } from "next/server";
 
-// GET all users
-export async function GET() {
+// This function handles PATCH requests to update a user's role
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { userId: string } },
+) {
+  // 1. Authenticate and authorize the admin
   const session = await getServerSession(authOptions);
   if (!session || session.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  try {
-    await dbConnect();
-    // Fetch users and explicitly cast to IUser[] (or a subset if you only need certain fields)
-    const users = (await User.find({}).select("-password").lean()) as IUser[];
-    return NextResponse.json(users, { status: 200 });
-  } catch (error) {
-    console.error("Admin GET Users Error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch users" },
-      { status: 500 },
-    );
-  }
-}
-
-// PATCH/PUT update user (example: change role or reset counts)
-export async function PATCH(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-  }
-
-  const { userId, updates } = await request.json();
-
-  if (!userId || !updates) {
-    return NextResponse.json(
-      { error: "Missing userId or updates" },
-      { status: 400 },
-    );
-  }
-
-  try {
-    await dbConnect();
-    // Find user and explicitly type the result before modification
-    const user = (await User.findById(userId)) as IUser;
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    Object.assign(user, updates);
-    await user.save();
-
-    return NextResponse.json(
-      { message: "User updated successfully", user },
-      { status: 200 },
-    );
-  } catch (error) {
-    console.error("Admin PATCH User Error:", error);
-    return NextResponse.json(
-      { error: "Failed to update user" },
-      { status: 500 },
-    );
-  }
-}
-
-// DELETE a user
-export async function DELETE(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-  }
-
-  const { userId } = await request.json();
-
+  const { userId } = params;
   if (!userId) {
-    return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    return NextResponse.json({ error: "User ID is required" }, { status: 400 });
   }
 
   try {
-    await dbConnect();
-    const result = await User.findByIdAndDelete(userId);
+    const body = await request.json();
+    const { role } = body;
 
-    if (!result) {
+    if (!role || !["user", "admin"].includes(role)) {
+      return NextResponse.json(
+        { error: "Invalid role provided" },
+        { status: 400 },
+      );
+    }
+
+    await dbConnect();
+
+    // 2. Find the user and update their role
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: { role: role } },
+      { new: true }, // Return the updated document
+    ).select("-password"); // Exclude password from the response
+
+    if (!updatedUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json(
-      { message: "User deleted successfully" },
-      { status: 200 },
-    );
+    return NextResponse.json(updatedUser, { status: 200 });
   } catch (error) {
-    console.error("Admin DELETE User Error:", error);
+    console.error("Admin Update User Role Error:", error);
     return NextResponse.json(
-      { error: "Failed to delete user" },
+      { error: "An internal server error occurred" },
       { status: 500 },
     );
   }

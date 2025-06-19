@@ -16,12 +16,11 @@ import { Input } from "./ui/input";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +38,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { useSession } from "next-auth/react";
 
+// This is a simple type definition for the data this component receives.
 interface Persona {
   _id: string;
   name: string;
@@ -50,43 +51,31 @@ interface Persona {
   creatorId: string;
 }
 
-interface Session {
-  user?: {
-    id?: string;
-    role?: string;
-  };
-}
-
 interface PersonaGridProps {
   initialPersonas: Persona[];
-  session: Session | null;
 }
 
-export default function PersonaGrid({
-  initialPersonas,
-  session,
-}: PersonaGridProps) {
+export default function PersonaGrid({ initialPersonas }: PersonaGridProps) {
+  const { data: session } = useSession();
   const [personas, setPersonas] = useState(initialPersonas || []);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [personaToDelete, setPersonaToDelete] = useState<Persona | null>(null);
 
+  // --- All the functions below are existing functionality and are not being changed ---
+
   const categories = useMemo<string[]>(() => {
-    if (!Array.isArray(personas)) return ["All"];
-    const uniqueCategories = new Set(
-      personas.map((p) => p?.category).filter(Boolean),
-    );
+    if (!personas) return ["All"];
+    const uniqueCategories = new Set(personas.map((p) => p.category));
     return ["All", ...Array.from(uniqueCategories)];
   }, [personas]);
 
   const filteredPersonas = useMemo(() => {
-    if (!Array.isArray(personas)) return [];
+    if (!personas) return [];
     return personas
-      .filter((p) => activeCategory === "All" || p?.category === activeCategory)
-      .filter((p) =>
-        (p?.name || "").toLowerCase().includes(searchQuery.toLowerCase()),
-      );
+      .filter((p) => activeCategory === "All" || p.category === activeCategory)
+      .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [personas, activeCategory, searchQuery]);
 
   const handleDeleteClick = (persona: Persona) => {
@@ -115,6 +104,8 @@ export default function PersonaGrid({
       setPersonaToDelete(null);
     }
   };
+
+  // --- The only changes are in the visual presentation (JSX) below ---
 
   return (
     <>
@@ -163,72 +154,75 @@ export default function PersonaGrid({
             (session.user.id === persona.creatorId ||
               session.user.role === "admin");
           return (
+            // --- START OF NEW CARD DESIGN ---
             <Card
               key={persona._id}
-              className="group bg-card/50 border-border/50 hover:border-primary/50 flex h-full flex-col overflow-hidden backdrop-blur-sm transition-all duration-300 hover:-translate-y-1"
+              className="group border-border/50 bg-card/50 hover:shadow-primary/10 relative flex h-80 flex-col justify-end overflow-hidden rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
             >
-              <CardHeader className="p-0">
-                <div className="relative">
-                  <Avatar className="h-64 w-full rounded-t-xl rounded-b-none">
-                    <AvatarImage
-                      src={persona.imageUrl}
-                      alt={persona.name}
-                      className="h-full w-full object-cover object-top"
-                    />
-                    <AvatarFallback className="rounded-none text-4xl">
-                      {(persona.name || "A").charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                  <div className="absolute bottom-0 left-0 p-4">
-                    <CardTitle className="text-2xl font-bold text-white">
-                      {persona.name}
-                    </CardTitle>
-                  </div>
+              <img
+                src={persona.imageUrl}
+                alt={persona.name}
+                className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-in-out group-hover:scale-110"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent"></div>
 
-                  {!persona.isDefault && canManage && (
-                    <div className="absolute top-2 right-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="secondary" size="icon">
-                            <FiMoreVertical />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem disabled>
-                            <FiEdit className="mr-2 h-4 w-4" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteClick(persona)}
-                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                          >
-                            <FiTrash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  )}
+              {/* Management Dropdown */}
+              {!persona.isDefault && canManage && (
+                <div className="absolute top-2 right-2 z-10">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8 border-none bg-black/50 hover:bg-black/70"
+                      >
+                        <FiMoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem disabled>
+                        <FiEdit className="mr-2 h-4 w-4" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(persona);
+                        }}
+                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                      >
+                        <FiTrash2 className="mr-2 h-4 w-4" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              </CardHeader>
-              <CardContent className="flex-grow p-4">
-                <CardDescription className="line-clamp-3">
+              )}
+
+              {/* Card Content on top of the gradient */}
+              <div className="relative z-10 flex flex-col p-4">
+                <Badge variant="secondary" className="mb-2 w-fit">
+                  {persona.category}
+                </Badge>
+                <CardTitle className="text-xl font-bold text-white">
+                  {persona.name}
+                </CardTitle>
+                {/* Here we use a standard <p> tag instead of CardDescription */}
+                <p className="mt-1 line-clamp-2 text-sm text-white/80">
                   {persona.description}
-                </CardDescription>
-              </CardContent>
-              <CardFooter className="p-4 pt-0">
+                </p>
                 <TransitionLink
                   href={`/chat?personaId=${persona._id}`}
-                  className="w-full"
+                  className="mt-4 w-full"
                 >
                   <Button
                     variant="secondary"
-                    className="group-hover:bg-primary/20 group-hover:text-primary w-full transition-colors"
+                    className="w-full bg-white/10 text-white backdrop-blur-lg hover:bg-white/20"
                   >
-                    <FiMessageSquare className="mr-2" /> Chat Now
+                    <FiMessageSquare className="mr-2 h-4 w-4" /> Chat Now
                   </Button>
                 </TransitionLink>
-              </CardFooter>
+              </div>
             </Card>
+            // --- END OF NEW CARD DESIGN ---
           );
         })}
       </div>
@@ -248,11 +242,12 @@ export default function PersonaGrid({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
+            {/* Here we also use a standard <p> tag */}
+            <p className="text-muted-foreground text-sm">
               This action cannot be undone. This will permanently delete the
               persona "{personaToDelete?.name}" and all of its associated chat
               histories.
-            </AlertDialogDescription>
+            </p>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

@@ -6,6 +6,7 @@ import User from "@/models/User";
 import Persona from "@/models/Persona";
 import ChatSession from "@/models/ChatSession";
 import { NextRequest } from "next/server";
+import { IUser } from "@/types";
 
 export async function DELETE(
   request: NextRequest,
@@ -32,18 +33,23 @@ export async function DELETE(
       return NextResponse.json({ error: "Persona not found" }, { status: 404 });
     }
 
+    // THE FIX: We convert the ObjectId to a string before comparing.
     const isCreator = persona.creatorId.toString() === session.user.id;
     const isAdmin = session.user.role === "admin";
 
     if (!isCreator && !isAdmin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: You do not have permission to delete this persona.",
+        },
+        { status: 403 },
+      );
     }
 
-    // --- THE FIX IS HERE ---
-    // We must fetch the creator's document before we can check their tier
-    const creator = await User.findById(persona.creatorId);
+    const creator: IUser | null = await User.findById(persona.creatorId);
 
-    // Now we check the creator's subscriptionTier and decrement their count
+    // Decrement the count if the creator is found and is on the free tier
     if (creator && creator.subscriptionTier === "free") {
       await User.updateOne(
         { _id: persona.creatorId },

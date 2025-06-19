@@ -1,6 +1,7 @@
 "use client";
 
-import { Inter } from "next/font/google";
+// 1. Import both fonts
+import { Inter, Space_Mono } from "next/font/google";
 import AuthProvider from "@/components/AuthProvider";
 import TransitionProvider from "@/components/TransitionProvider";
 import TransitionLink from "@/components/TransitionLink";
@@ -10,7 +11,17 @@ import LoginButton from "@/components/LoginButton";
 import { Toaster } from "@/components/ui/sonner";
 import VoiceProvider from "@/components/VoiceProvider";
 
-const inter = Inter({ subsets: ["latin"] });
+// 2. Instantiate both fonts and assign them CSS variables
+const spaceMono = Space_Mono({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-space-mono",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 export default function RootLayout({
   children,
@@ -19,15 +30,19 @@ export default function RootLayout({
 }>) {
   return (
     <AuthProvider>
-      <html lang="en" className="dark">
+      {/* 3. Apply BOTH font variables to the <html> tag */}
+      <html
+        lang="en"
+        className={`${spaceMono.variable} ${inter.variable} dark`}
+      >
         <head>
           <title>AI FameTalk</title>
           <meta name="description" content="Chat with your favorite personas" />
         </head>
-        <body className={`${inter.className} bg-background text-foreground`}>
+        <body>
           <VoiceProvider>
             <TransitionProvider>
-              <header className="bg-background/80 backdrop-blur-sm sticky top-0 z-40 border-b">
+              <header className="bg-background/80 sticky top-0 z-20 border-b backdrop-blur-sm">
                 <nav className="container mx-auto flex items-center justify-between p-4">
                   <TransitionLink
                     href="/"
