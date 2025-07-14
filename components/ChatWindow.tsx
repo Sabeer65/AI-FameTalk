@@ -11,7 +11,7 @@ import {
   FiVolume2,
   FiMic,
   FiRadio,
-  FiX, // Import the 'X' icon for stopping
+  FiX,
 } from "react-icons/fi";
 import TypingLoader from "./TypingLoader";
 import { Button } from "./ui/button";
@@ -48,7 +48,6 @@ export default function ChatWindow({
   const [userInput, setUserInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  // State to track the index of the message currently being spoken
   const [speakingMessageIndex, setSpeakingMessageIndex] = useState<
     number | null
   >(null);
@@ -57,7 +56,8 @@ export default function ChatWindow({
   const { isReady: isTtsAvailable, isSpeaking, speak, cancel } = useVoice();
 
   const handleFinalTranscript = (transcript: string) => {
-    setUserInput((prev) => (prev + " " + transcript).trim());
+    // Append the final transcript to the existing user input
+    setUserInput((prev) => (prev.trim() + " " + transcript).trim());
   };
 
   const { isListening, interimTranscript, startListening, stopListening } =
@@ -66,11 +66,12 @@ export default function ChatWindow({
   useEffect(() => {
     setMessages(initialMessages);
     setUserInput("");
-    // When the chat changes, stop any currently playing speech.
     cancel();
     setSpeakingMessageIndex(null);
   }, [initialMessages, cancel]);
 
+  // This effect now correctly handles the display of interim results
+  // without overriding the final transcript.
   useEffect(() => {
     if (isListening) {
       setUserInput(interimTranscript);
@@ -83,8 +84,9 @@ export default function ChatWindow({
 
   const handleFormSubmit = async () => {
     if (!userInput.trim() || !persona || isSending) return;
-    if (isListening) stopListening();
-    // Stop any speech before sending a new message
+    if (isListening) {
+      stopListening();
+    }
     cancel();
     setSpeakingMessageIndex(null);
 
@@ -135,9 +137,8 @@ export default function ChatWindow({
       };
       setMessages((prev) => [...prev, botMessage]);
 
-      // Automatically speak the new response.
       speak(botMessage.parts[0].text, persona.gender, {
-        onstart: () => setSpeakingMessageIndex(messages.length), // The index will be the last item
+        onstart: () => setSpeakingMessageIndex(messages.length),
         onend: () => setSpeakingMessageIndex(null),
       });
 
@@ -159,9 +160,10 @@ export default function ChatWindow({
     if (isListening) {
       stopListening();
     } else {
-      // Stop any TTS before starting speech recognition
       cancel();
       setSpeakingMessageIndex(null);
+      // Clear the input only when starting a new listening session
+      setUserInput("");
       startListening();
     }
   };
@@ -180,12 +182,10 @@ export default function ChatWindow({
       return;
     }
 
-    // If the clicked message is already the one speaking, cancel it.
     if (isSpeaking && speakingMessageIndex === index) {
       cancel();
       setSpeakingMessageIndex(null);
     } else {
-      // Otherwise, speak the new message. The provider will handle interruption.
       speak(text, persona.gender, {
         onstart: () => setSpeakingMessageIndex(index),
         onend: () => setSpeakingMessageIndex(null),

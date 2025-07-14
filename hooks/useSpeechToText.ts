@@ -59,16 +59,17 @@ export const useSpeechToText = ({
 
     recognition.onerror = (event: any) => {
       console.error(`Speech recognition error: ${event.error}`, event.message);
+      setIsListening(false); // Ensure listening state is reset on error
     };
 
     recognition.onend = () => {
+      // THE FIX: We no longer clear the interim transcript here.
+      // The parent component will decide when to clear the input.
       setIsListening(false);
-      setInterimTranscript("");
     };
 
     recognitionRef.current = recognition;
 
-    // Cleanup function to stop recognition if the component unmounts
     return () => {
       recognitionRef.current?.stop();
     };
@@ -76,6 +77,7 @@ export const useSpeechToText = ({
 
   const startListening = () => {
     if (recognitionRef.current && !isListening) {
+      setInterimTranscript("");
       recognitionRef.current.start();
       setIsListening(true);
     }

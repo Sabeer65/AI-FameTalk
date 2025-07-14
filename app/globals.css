@@ -69,6 +69,7 @@
         hsl(217, 100%, 50%, 0.1),
         rgba(255, 255, 255, 0) 35%
       );
+    overflow-x: hidden;
   }
 }
 ::-webkit-scrollbar {

@@ -18,7 +18,7 @@ const UserSchema = new Schema({
   },
   subscriptionTier: {
     type: String,
-    enum: ["free", "premium"],
+    enum: ["free", "pro"],
     default: "free",
   },
   personasCreated: {

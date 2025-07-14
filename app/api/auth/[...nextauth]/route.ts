@@ -1,3 +1,6 @@
+// This is the full code for the file: app/api/auth/[...nextauth]/route.ts
+// It replaces the entire existing content of this file.
+
 import NextAuth from "next-auth";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import clientPromise from "@/lib/mongodb";
@@ -23,7 +26,14 @@ export const authOptions: import("next-auth").NextAuthOptions = {
             from: "AI FameTalk <onboarding@resend.dev>",
             to: [email],
             subject: "Sign in to AI FameTalk",
-            html: `...`, // This HTML should be correct from our previous step
+            html: `
+              <div style="font-family: Arial, sans-serif; text-align: center; padding: 40px;">
+                <h2 style="color: #333;">Sign In to Your Account</h2>
+                <p style="color: #555; margin-bottom: 30px;">Click the button below to sign in to AI FameTalk securely.</p>
+                <a href="${url}" target="_blank" style="background-color: #6a0dad; color: white; padding: 15px 25px; text-decoration: none; border-radius: 5px; font-size: 16px;">Sign In</a>
+                <p style="color: #888; font-size: 12px; margin-top: 30px;">If you did not request this email, you can safely ignore it.</p>
+              </div>
+            `,
           });
         } catch (error) {
           console.error("Failed to send verification email:", error);
@@ -35,31 +45,28 @@ export const authOptions: import("next-auth").NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
-  pages: {
-    signIn: "/login",
-    verifyRequest: "/verify-request",
-  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        // On sign in, populate the token with user details
         token.id = user.id;
-        token.role = (user as any).role || "user"; // Default to 'user' role
-        token.picture = user.image; // Add the image to the token
+        token.role = (user as any).role || "user";
+        token.picture = user.image;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        // Pass the details from the token to the session
         session.user.id = token.id as string;
         session.user.role = token.role as string;
-        session.user.image = token.picture as string; // Pass the image to the session
+        session.user.image = token.picture as string;
       }
       return session;
     },
   },
-  // The "pages" object has been removed from here
+  pages: {
+    signIn: "/login",
+    verifyRequest: "/verify-request",
+  },
   secret: process.env.NEXTAUTH_SECRET,
 };
 

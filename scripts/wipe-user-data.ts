@@ -1,3 +1,6 @@
+// This is the full code for the file: scripts/wipe-user-data.ts
+// It replaces the entire existing content of this file.
+
 import mongoose from "mongoose";
 import ChatSession from "../models/ChatSession";
 import Persona from "../models/Persona";
@@ -12,17 +15,19 @@ const getUserEmail = () => {
       "\nError: Please provide a user email address as an argument.",
     );
     console.log(
-      "Usage: npx tsx --env-file=.env.local scripts/wipe-user-data.ts user@example.com\n",
+      "Usage: npx ts-node -r tsconfig-paths/register scripts/wipe-user-data.ts user@example.com\n",
     );
     process.exit(1);
   }
   return email;
 };
 
-const wipeUserData = async () => {
+const wipeAndRemoveUser = async () => {
   const userEmail = getUserEmail();
 
-  console.log(`\nAttempting to wipe all data for user: ${userEmail}`);
+  console.log(
+    `\nAttempting to wipe all data for and remove user: ${userEmail}`,
+  );
 
   if (!MONGODB_URI) {
     throw new Error("MONGODB_URI environment variable is not defined.");
@@ -57,17 +62,15 @@ const wipeUserData = async () => {
   console.log(
     `- Deleted ${personaDeleteResult.deletedCount} user-created personas.`,
   );
+  await User.deleteOne({ _id: userId });
+  console.log(`- Successfully deleted user: ${userEmail}`);
 
-  // 4. Reset the user's persona creation count
-  await User.updateOne({ _id: userId }, { $set: { personasCreated: 0 } });
-  console.log(`- Reset user's 'personasCreated' count to 0.`);
-
-  console.log("\nData wipe for user completed successfully.");
+  console.log("\nUser data wipe and removal completed successfully.");
   await mongoose.connection.close();
   console.log("Database connection closed.");
 };
 
-wipeUserData().catch((error) => {
+wipeAndRemoveUser().catch((error) => {
   console.error("\nAn error occurred while running the script:", error);
   mongoose.connection.close();
   process.exit(1);
