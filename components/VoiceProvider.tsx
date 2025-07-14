@@ -3,30 +3,29 @@
 
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 
-// Define the shape of the ResponsiveVoice object
-interface ResponsiveVoice {
-  speak: (text: string, voice?: string, options?: any) => void;
-  cancel: () => void;
-  isPlaying: () => boolean;
-  setDefaultVoice: (voice: string) => void;
-  // This is a special property we can set to know when the library is ready
-  OnVoiceReady?: () => void;
-}
-
-// Extend the Window interface
-declare global {
-  interface Window {
-    responsiveVoice: ResponsiveVoice;
-  }
+// Define the shape of optional callbacks for the speak function
+interface SpeakCallbacks {
+  onstart?: () => void;
+  onend?: () => void;
 }
 
 // Define the context shape
 interface VoiceContextType {
-  isSpeaking: boolean;
   isReady: boolean;
-  speak: (text: string, voice?: string) => void;
+  isSpeaking: boolean;
+  speak: (
+    text: string,
+    gender: "male" | "female" | "neutral",
+    callbacks?: SpeakCallbacks,
+  ) => void;
   cancel: () => void;
 }
 
@@ -40,76 +39,88 @@ export const useVoice = () => {
   return context;
 };
 
-const VoiceProvider = ({ children }: { children: React.ReactNode }) => {
+export const VoiceProvider = ({ children }: { children: React.ReactNode }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   useEffect(() => {
-    // --- This effect handles loading the external script ---
-
-    // Check if the script is already loaded to avoid duplicates
-    if (document.getElementById("responsivevoice-script")) {
-      setIsReady(true);
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      console.warn("Browser Speech Synthesis not supported.");
       return;
     }
 
-    const script = document.createElement("script");
-    script.id = "responsivevoice-script";
-    // IMPORTANT: Replace with your actual ResponsiveVoice API Key
-    script.src = `https://code.responsivevoice.org/responsivevoice.js?key=ZxTNcwhE`;
-    script.async = true;
-
-    // The official way to know when ResponsiveVoice is loaded and ready
-    script.onload = () => {
-      // The OnVoiceReady event fires when the voices have been loaded.
-      if (window.responsiveVoice) {
-        window.responsiveVoice.OnVoiceReady = () => {
-          console.log("ResponsiveVoice is ready.");
-          setIsReady(true);
-        };
+    const handleVoicesChanged = () => {
+      const availableVoices = window.speechSynthesis.getVoices();
+      if (availableVoices.length > 0) {
+        setVoices(availableVoices);
+        setIsReady(true);
+        console.log("Browser TTS is ready.");
+        window.speechSynthesis.onvoiceschanged = null;
       }
     };
 
-    script.onerror = () => {
-      console.error("Failed to load the ResponsiveVoice script.");
-      setIsReady(false);
-    };
-
-    document.head.appendChild(script);
+    window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+    handleVoicesChanged();
 
     return () => {
-      // Optional: Cleanup the script when the provider is unmounted
-      const scriptElement = document.getElementById("responsivevoice-script");
-      if (scriptElement) {
-        // You might choose to leave it loaded for performance on subsequent page loads
-        // document.head.removeChild(scriptElement);
-      }
+      window.speechSynthesis.cancel();
     };
   }, []);
 
-  const speak = (text: string, voice = "UK English Female") => {
-    if (isReady && !isSpeaking) {
-      window.responsiveVoice.speak(text, voice, {
-        onstart: () => setIsSpeaking(true),
-        onend: () => setIsSpeaking(false),
-      });
-    } else if (!isReady) {
-      console.warn("Voice service is not ready yet.");
-    }
-  };
+  const speak = useCallback(
+    (
+      text: string,
+      gender: "male" | "female" | "neutral" = "male",
+      callbacks?: SpeakCallbacks,
+    ) => {
+      if (!isReady) return;
 
-  const cancel = () => {
-    if (isReady && isSpeaking) {
-      window.responsiveVoice.cancel();
+      // Stop any currently playing speech before starting a new one
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+
+      const preferredVoice = voices.find(
+        (v) =>
+          v.lang.startsWith("en") &&
+          (gender === "female"
+            ? v.name.includes("Female") || v.name.includes("Zira")
+            : v.name.includes("Male") || v.name.includes("David")),
+      );
+
+      utterance.voice =
+        preferredVoice || voices.find((v) => v.lang.startsWith("en")) || null;
+
+      // Wire up the state and callbacks
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        callbacks?.onstart?.();
+      };
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        callbacks?.onend?.();
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        callbacks?.onend?.(); // Also treat error as the end
+      };
+
+      window.speechSynthesis.speak(utterance);
+    },
+    [isReady, voices],
+  );
+
+  const cancel = useCallback(() => {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
       setIsSpeaking(false);
     }
-  };
+  }, []);
 
-  const value = { isSpeaking, isReady, speak, cancel };
+  const value = { isReady, isSpeaking, speak, cancel };
 
   return (
     <VoiceContext.Provider value={value}>{children}</VoiceContext.Provider>
   );
 };
-
-export default VoiceProvider;

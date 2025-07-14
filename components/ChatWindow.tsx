@@ -11,6 +11,7 @@ import {
   FiVolume2,
   FiMic,
   FiRadio,
+  FiX, // Import the 'X' icon for stopping
 } from "react-icons/fi";
 import TypingLoader from "./TypingLoader";
 import { Button } from "./ui/button";
@@ -47,38 +48,45 @@ export default function ChatWindow({
   const [userInput, setUserInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  // State to track the index of the message currently being spoken
+  const [speakingMessageIndex, setSpeakingMessageIndex] = useState<
+    number | null
+  >(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { isReady: isTtsAvailable, speak } = useVoice();
+  const { isReady: isTtsAvailable, isSpeaking, speak, cancel } = useVoice();
 
   const handleFinalTranscript = (transcript: string) => {
     setUserInput((prev) => (prev + " " + transcript).trim());
   };
 
-  // This call now correctly matches the hook's definition
   const { isListening, interimTranscript, startListening, stopListening } =
     useSpeechToText({ onFinalTranscript: handleFinalTranscript });
 
   useEffect(() => {
     setMessages(initialMessages);
     setUserInput("");
-  }, [initialMessages]);
+    // When the chat changes, stop any currently playing speech.
+    cancel();
+    setSpeakingMessageIndex(null);
+  }, [initialMessages, cancel]);
 
   useEffect(() => {
-    // Only update from interim transcript if we are actively listening
     if (isListening) {
       setUserInput(interimTranscript);
     }
   }, [interimTranscript, isListening]);
 
-  const scrollToBottom = () => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-  useEffect(scrollToBottom, [messages, isSending]);
+  }, [messages, isSending]);
 
   const handleFormSubmit = async () => {
     if (!userInput.trim() || !persona || isSending) return;
     if (isListening) stopListening();
+    // Stop any speech before sending a new message
+    cancel();
+    setSpeakingMessageIndex(null);
 
     if (status === "unauthenticated") {
       const guestCount = parseInt(
@@ -127,7 +135,11 @@ export default function ChatWindow({
       };
       setMessages((prev) => [...prev, botMessage]);
 
-      speak(botMessage.parts[0].text, persona.gender);
+      // Automatically speak the new response.
+      speak(botMessage.parts[0].text, persona.gender, {
+        onstart: () => setSpeakingMessageIndex(messages.length), // The index will be the last item
+        onend: () => setSpeakingMessageIndex(null),
+      });
 
       if (isNewChat && status === "authenticated") {
         onNewChatStarted();
@@ -147,6 +159,9 @@ export default function ChatWindow({
     if (isListening) {
       stopListening();
     } else {
+      // Stop any TTS before starting speech recognition
+      cancel();
+      setSpeakingMessageIndex(null);
       startListening();
     }
   };
@@ -158,15 +173,24 @@ export default function ChatWindow({
     }
   };
 
-  const handleSpeakClick = (text: string) => {
+  const handleSpeakClick = (text: string, index: number) => {
     if (!persona) return;
     if (!isTtsAvailable) {
-      toast.error("Voice Service Not Available", {
-        description: "Please check your browser settings or API key.",
-      });
+      toast.error("Voice Service Not Available");
       return;
     }
-    speak(text, persona.gender);
+
+    // If the clicked message is already the one speaking, cancel it.
+    if (isSpeaking && speakingMessageIndex === index) {
+      cancel();
+      setSpeakingMessageIndex(null);
+    } else {
+      // Otherwise, speak the new message. The provider will handle interruption.
+      speak(text, persona.gender, {
+        onstart: () => setSpeakingMessageIndex(index),
+        onend: () => setSpeakingMessageIndex(null),
+      });
+    }
   };
 
   if (!persona) {
@@ -223,9 +247,13 @@ export default function ChatWindow({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={() => handleSpeakClick(msg.parts[0].text)}
+                onClick={() => handleSpeakClick(msg.parts[0].text, index)}
               >
-                <FiVolume2 className="h-4 w-4" />
+                {isSpeaking && speakingMessageIndex === index ? (
+                  <FiX className="h-4 w-4" />
+                ) : (
+                  <FiVolume2 className="h-4 w-4" />
+                )}
               </Button>
             )}
           </div>
@@ -279,6 +307,25 @@ export default function ChatWindow({
           </Button>
         </form>
       </footer>
+      <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Guest Limit Reached</DialogTitle>
+            <DialogDescription>
+              You have reached the message limit for guests. Please sign in to
+              continue chatting.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowLimitModal(false)}>
+              Cancel
+            </Button>
+            <TransitionLink href="/login">
+              <Button>Sign In</Button>
+            </TransitionLink>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

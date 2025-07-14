@@ -8,7 +8,7 @@ import "./globals.css";
 import { Button } from "@/components/ui/button";
 import { LoginButton } from "@/components/LoginButton";
 import { Toaster } from "@/components/ui/sonner";
-import VoiceProvider from "@/components/VoiceProvider";
+import { VoiceProvider } from "@/components/VoiceProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function RootLayout({
