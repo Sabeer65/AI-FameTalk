@@ -21,7 +21,7 @@ import { useRouter } from "next/navigation";
 const tiers = [
   {
     name: "Free",
-    price: "$0",
+    price: "₹0",
     features: [
       "100 messages per month",
       "Access to all standard personas",
@@ -31,7 +31,7 @@ const tiers = [
   },
   {
     name: "Pro",
-    price: "$10",
+    price: "₹1000",
     features: [
       "Unlimited messages",
       "Create custom personas",
@@ -49,10 +49,17 @@ export default function PricingPage() {
   const router = useRouter();
 
   const handleUpgrade = async (planId: string | undefined) => {
+    // --- THE FIX: Check user's current subscription tier first ---
+    if (session?.user?.subscriptionTier === "pro") {
+      toast.info("You are already a Pro member!");
+      return;
+    }
+
     if (status !== "authenticated") {
       toast.error("Please sign in to upgrade your plan.");
       return;
     }
+
     if (!planId) {
       toast.error(
         "Pro plan is not configured correctly. Please contact support.",
@@ -79,13 +86,11 @@ export default function PricingPage() {
         throw new Error(data.error || "Failed to create subscription.");
       }
 
-      // --- THE FIX #2: Open the checkout URL in a new tab ---
       if (data.url) {
         window.open(data.url, "_blank", "noopener,noreferrer");
         toast.success("Success! Your plan is now Pro.", {
-          description: "You can close this page or continue Browse.",
+          description: "Please complete the payment in the new tab.",
         });
-        // Redirect the user on the main site after a short delay
         setTimeout(() => {
           router.push("/personas");
         }, 1000);
@@ -134,10 +139,16 @@ export default function PricingPage() {
               {tier.name === "Pro" ? (
                 <Button
                   onClick={() => handleUpgrade(tier.planId)}
-                  disabled={isUpgrading}
+                  disabled={
+                    isUpgrading || session?.user?.subscriptionTier === "pro"
+                  }
                   className="w-full"
                 >
-                  {isUpgrading ? "Processing..." : tier.cta}
+                  {session?.user?.subscriptionTier === "pro"
+                    ? "You are a Pro"
+                    : isUpgrading
+                      ? "Processing..."
+                      : tier.cta}
                 </Button>
               ) : (
                 <Button disabled className="w-full" variant="outline">

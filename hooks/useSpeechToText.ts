@@ -1,16 +1,11 @@
-// This is the full code for the file: hooks/useSpeechToText.ts
-// It replaces the entire existing content of this file.
-
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
-// Define the shape of the props the hook will accept
 interface UseSpeechToTextOptions {
   onFinalTranscript: (transcript: string) => void;
 }
 
-// Extend the Window interface for speech recognition APIs
 declare global {
   interface Window {
     SpeechRecognition: any;
@@ -59,12 +54,12 @@ export const useSpeechToText = ({
 
     recognition.onerror = (event: any) => {
       console.error(`Speech recognition error: ${event.error}`, event.message);
-      setIsListening(false); // Ensure listening state is reset on error
+      setIsListening(false);
     };
 
+    // THE FIX: This function no longer clears the transcript.
+    // It only updates the listening status.
     recognition.onend = () => {
-      // THE FIX: We no longer clear the interim transcript here.
-      // The parent component will decide when to clear the input.
       setIsListening(false);
     };
 
@@ -75,20 +70,20 @@ export const useSpeechToText = ({
     };
   }, [onFinalTranscript]);
 
-  const startListening = () => {
+  const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
-      setInterimTranscript("");
+      setInterimTranscript(""); // Clear previous interim results
       recognitionRef.current.start();
       setIsListening(true);
     }
-  };
+  }, [isListening]);
 
-  const stopListening = () => {
+  const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {
       recognitionRef.current.stop();
       setIsListening(false);
     }
-  };
+  }, [isListening]);
 
   return { isListening, interimTranscript, startListening, stopListening };
 };

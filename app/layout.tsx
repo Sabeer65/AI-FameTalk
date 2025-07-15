@@ -1,5 +1,3 @@
-"use client";
-
 import { ThemeProvider } from "@/components/ThemeProvider";
 import AuthProvider from "@/components/AuthProvider";
 import TransitionProvider from "@/components/TransitionProvider";
@@ -17,24 +15,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <AuthProvider>
-      {/* THE FIX: Add suppressHydrationWarning to the <html> tag */}
-      <html lang="en" suppressHydrationWarning>
-        <head>
-          <title>AI FameTalk</title>
-          <meta name="description" content="Chat with your favorite personas" />
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link
-            rel="preconnect"
-            href="https://fonts.gstatic.com"
-            crossOrigin="anonymous"
-          />
-          <link
-            href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Public+Sans:wght@400;500;700&display=swap"
-            rel="stylesheet"
-          />
-        </head>
-        <body>
+    // THE FIX: Add suppressHydrationWarning to the <html> tag
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <title>AI FameTalk</title>
+        <meta name="description" content="Chat with your favorite personas" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Public+Sans:wght@400;500;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body>
+        <AuthProvider>
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"
@@ -49,7 +47,11 @@ export default function RootLayout({
                       href="/"
                       className="text-xl font-bold tracking-tighter"
                     >
-                      <img src="logo.png" alt="" className="h-10" />
+                      <img
+                        src="logo.png"
+                        alt="AI FameTalk Logo"
+                        className="h-10"
+                      />
                     </TransitionLink>
                     <div className="hidden items-center space-x-2 md:flex">
                       <TransitionLink href="/personas">
@@ -76,8 +78,8 @@ export default function RootLayout({
             </VoiceProvider>
             <Toaster theme="dark" position="bottom-right" />
           </ThemeProvider>
-        </body>
-      </html>
-    </AuthProvider>
+        </AuthProvider>
+      </body>
+    </html>
   );
 }

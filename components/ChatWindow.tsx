@@ -56,8 +56,7 @@ export default function ChatWindow({
   const { isReady: isTtsAvailable, isSpeaking, speak, cancel } = useVoice();
 
   const handleFinalTranscript = (transcript: string) => {
-    // Append the final transcript to the existing user input
-    setUserInput((prev) => (prev.trim() + " " + transcript).trim());
+    setUserInput((prev) => (prev + " " + transcript).trim());
   };
 
   const { isListening, interimTranscript, startListening, stopListening } =
@@ -70,8 +69,6 @@ export default function ChatWindow({
     setSpeakingMessageIndex(null);
   }, [initialMessages, cancel]);
 
-  // This effect now correctly handles the display of interim results
-  // without overriding the final transcript.
   useEffect(() => {
     if (isListening) {
       setUserInput(interimTranscript);
@@ -162,7 +159,6 @@ export default function ChatWindow({
     } else {
       cancel();
       setSpeakingMessageIndex(null);
-      // Clear the input only when starting a new listening session
       setUserInput("");
       startListening();
     }

@@ -47,7 +47,8 @@ const PersonaShowcaseCard = ({
   description: string;
   imageUrl: string;
 }) => (
-  <Card className="persona-showcase-card group relative overflow-hidden rounded-xl">
+  // THE FIX: Added h-96 to set a fixed height for the card.
+  <Card className="persona-showcase-card group relative h-96 overflow-hidden rounded-xl">
     <img
       src={imageUrl}
       alt={name}
@@ -60,7 +61,6 @@ const PersonaShowcaseCard = ({
     </CardContent>
   </Card>
 );
-
 export default function HomePage() {
   const container = useRef(null);
 
@@ -182,12 +182,12 @@ export default function HomePage() {
           <PersonaShowcaseCard
             name="Cleopatra"
             description="The last active ruler of the Ptolemaic Kingdom of Egypt."
-            imageUrl="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Cleopatra_VII_Altes_Museum_Berlin_3.jpg/800px-Cleopatra_VII_Altes_Museum_Berlin_3.jpg"
+            imageUrl="https://www.worldhistory.org/img/r/p/500x600/14929.jpg?v=1731444006"
           />
           <PersonaShowcaseCard
             name="Sherlock Holmes"
             description="A fictional detective of the late 19th and early 20th centuries."
-            imageUrl="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Sidney_Paget_-_The_Return_of_Sherlock_Holmes_-_Illustration_I.jpg/800px-Sidney_Paget_-_The_Return_of_Sherlock_Holmes_-_Illustration_I.jpg"
+            imageUrl="https://cdn.squaremile.com/gallery_landscape_widescreen/625438224235e.webp"
           />
         </div>
       </section>

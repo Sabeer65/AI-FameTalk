@@ -1,6 +1,10 @@
+// This is the full code for your file.
+// I have only added the necessary lines and enabled the button as requested.
+
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation"; // 1. IMPORT ADDED
 import { useSession } from "next-auth/react";
 import TransitionLink from "./TransitionLink";
 import {
@@ -57,6 +61,7 @@ export default function PersonaGrid({
   const [activeCategory, setActiveCategory] = useState("All");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [personaToDelete, setPersonaToDelete] = useState<IPersona | null>(null);
+  const router = useRouter(); // 2. ROUTER INITIALIZED
 
   const categories = useMemo<string[]>(() => {
     if (!personas) return ["All"];
@@ -71,11 +76,13 @@ export default function PersonaGrid({
       .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [personas, activeCategory, searchQuery]);
 
+  // YOUR EXISTING DELETE FUNCTION - UNCHANGED
   const handleDeleteClick = (persona: IPersona) => {
     setPersonaToDelete(persona);
     setShowDeleteDialog(true);
   };
 
+  // YOUR EXISTING CONFIRM DELETE FUNCTION - UNCHANGED
   const confirmDelete = async () => {
     if (!personaToDelete) return;
     try {
@@ -169,7 +176,13 @@ export default function PersonaGrid({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem disabled>
+                      {/* --- 3. THE FIX --- */}
+                      {/* The 'disabled' property is removed and an 'onSelect' handler is added */}
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          router.push(`/personas/edit/${persona._id}`)
+                        }
+                      >
                         <FiEdit className="mr-2 h-4 w-4" /> Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem
